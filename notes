@@ -1,0 +1,5 @@
+return, inactive class variable, exclude return phase robot bid
+incremental bt points addition
+validation of added incre bt points after spiral completion
+loop over all bt_destinations of all planners and find minimum
+literature review for collision avoidance
