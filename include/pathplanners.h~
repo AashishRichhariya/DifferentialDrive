@@ -111,7 +111,12 @@ class PathPlannerGrid{
     void findCoverageLocalNeighborPreference(AprilInterfaceAndVideoCapture &testbed,robot_pose &ps);
     void findCoverageGlobalNeighborPreference(AprilInterfaceAndVideoCapture &testbed);
     void drawPath(cv::Mat &image);
-    void DeadlockReplan(AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &bots)
+    void DeadlockReplan(AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &bots);
+    //following 3 functions were added for the updated backtrack search Algo
+    int checkBactrackCondition(pair<int, int> p1, pair <int, int> p2);
+    bool checkBactrackValidityForBSA_CM(pair <int, int> t);
+    void BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots)
+    
 };
 
 class PathPlannerUser{

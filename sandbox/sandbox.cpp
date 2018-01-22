@@ -201,7 +201,8 @@ int main(int argc, char* argv[]) {
 
     for(int i = 1;i<bots.size();i++){
       cout<<"planning for id "<<i<<endl;
-      bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners);
+      //bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners);
+      bots[i].plan.BSACoverageWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners);
     }
 
     //if(!path_planner.total_points){//no path algorithm ever run before, total_points become -1 if no path exists from pos to goal

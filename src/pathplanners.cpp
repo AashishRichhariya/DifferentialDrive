@@ -432,6 +432,15 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
         return;
       }
     }
+
+    for(int i = 0; i < bt_destinations.size(); i++)
+    {
+      if(!bt_destinations[i].valid || world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].steps>0){//the bt is no longer uncovered
+        bt_destinations[i].valid = false;//the point should no longer be considered in future
+        continue;
+      }
+    }
+    
   }
   //cout<<"after first call check"<<endl;
   vector<pair<int,int> > incumbent_cells(rcells*ccells);//make sure rcells and ccells are defined
@@ -541,7 +550,7 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
         break; //for i
       }
       
-      else{//the following else statement can be avoided as all the backtrackpoints have already been added, but has just been kept. It is redundant. But it still is somehow being called sometimes.
+      else{//the following else statement can be avoided as all the backtrackpoints have already been added, but has just been kept. It is redundant. 
       //incase we are backtracking, adding points to bots[i]'s backtracking destinations after checking if the desitation is not already in the vector.
         int i;
         for(i = 0;i<bt_destinations.size();i++)
@@ -570,7 +579,7 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
     //the lines below are obsolete(at first thought) since the shortest path is being calculated, so wall reference and parent are obsolete on already visited points
     world_grid[next_below.first][next_below.second].parent = t;
     world_grid[next_below.first][next_below.second].wall_reference = 1;//since turning 180 degrees
-  }
+  } //while
   //cout<<"reached out of while loop, will now check if this is a backtrack interation or a new spiral point has already been added"<<endl;
   if(ic_no == 0) return;//no further bt processing
   //in case of backtracking
@@ -695,7 +704,279 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
   //sk = bt_destinations[it].stack_state;
   cout<<"Just found the best backtrack point. Adding it!\n";
   addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,bots[bot_index].bt_destinations[it].next_p.first,bots[bot_index].bt_destinations[it].next_p.second,bots[bot_index].bt_destinations[it].parent,testbed);
+}//end of BSA incremental fucntion
+
+int PathPlannerGrid::checkBactrackCondition(pair<int, int> p1, pair <int, int> p2)
+{
+  if(!isBlocked(p1.first, p1.second) && isBlocked(p2.first, p2.second) )
+  {
+    //return 1;
+    if(p2.first>=0 && p2.second>=0 && p2.first<rcells && p2.second<ccells && world_grid[p2.first][p2.second].r_id != robot_tag_id) return 1;
+    else return 0;
+  }
+  else return 0;
 }
+
+bool PathPlannerGrid::checkBactrackValidityForBSA_CM(pair <int, int> t)
+{
+  int sum = 0;
+  vector <pair<int, int>> v(9);
+  v[1].first = t.first + 0;
+  v[1].second = t.second + 1;
+  v[2].first = t.first -1;
+  v[2].second = t.second +1; 
+  v[3].first = t.first -1;
+  v[3].second = t.second -0; 
+  v[4].first = t.first -1;
+  v[4].second = t.second -1; 
+  v[5].first = t.first -0;
+  v[5].second = t.second -1; 
+  v[6].first = t.first +1;
+  v[6].second = t.second -1; 
+  v[7].first = t.first +1;
+  v[7].second = t.second -0; 
+  v[8].first = t.first +1;
+  v[8].second = t.second +1; 
+  //following is the modified backtrack selection formula used from Two-Way Proximity Search Algo, along with some conditions added for BSA
+  sum+= checkBactrackCondition(v[1], v[8]);
+  sum+= checkBactrackCondition(v[5], v[6]);
+  sum+= checkBactrackCondition(v[1], v[2]);
+  sum+= checkBactrackCondition(v[5], v[4]);
+  sum+= checkBactrackCondition(v[7], v[6]);
+  sum+= checkBactrackCondition(v[7], v[8]);
+  sum+= checkBactrackCondition(v[5], v[7]);
+  sum+= checkBactrackCondition(v[5], v[3]);
+  sum+= checkBactrackCondition(v[1], v[7]);
+  sum+= checkBactrackCondition(v[1], v[3]);
+  //following lines are added to the formula given in Two-way poriximity paper to extend the algo for BSA
+  sum+= checkBactrackCondition(v[3], v[2]);
+  sum+= checkBactrackCondition(v[3], v[4]);
+  sum+= checkBactrackCondition(v[3], v[1]);
+  sum+= checkBactrackCondition(v[3], v[5]);
+  sum+= checkBactrackCondition(v[7], v[1]);
+  sum+= checkBactrackCondition(v[7], v[5]);
+
+  if (sum>0) return 1;
+  else return 0;
+}
+
+
+void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots){
+  if(setRobotCellCoordinates(testbed.detections)<0)//set the start_grid_y, start_grid_x
+    return;
+
+  if(!first_call){
+    //cout<<"in second and subsequent calls"<<endl;
+    if(!sk.empty()){
+      pair<int,int> t = sk.top();
+      world_grid[start_grid_x][start_grid_y].bot_presence = make_pair(1, robot_tag_id); //assigning bot presence bit to current cell, //this would come to use in collision avoidance algorithm
+      if(last_grid_x != start_grid_x || last_grid_y != start_grid_y)
+      {
+        world_grid[last_grid_x][last_grid_y].bot_presence = make_pair(0, -1);
+        last_grid_x = start_grid_x;
+        last_grid_y = start_grid_y;
+      }    
+    if(t.first != start_grid_x || t.second != start_grid_y || distance(ps.x,ps.y,path_points[total_points-1].x,path_points[total_points-1].y)>reach_distance){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
+        cout<<"the robot has not yet reached the old target"<<t.first<<" "<<t.second<<endl;
+        return;
+      }
+    }
+    //checking validit of backtrackpoints made as of now.
+    for(int i = 0; i< bt_destinations.size();i++){
+    pair<int, int> backtrack_parent;
+    backtrack_parent.first = bt_destinations[i].parent.first;
+    backtrack_parent.second = bt_destinations[i].parent.second;
+    if(!bt_destinations[i].valid || world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].steps>0 || !checkBactrackValidityForBSA_CM(backtrack_parent)){//the bt is no longer uncovered or backtack conditions no longer remain
+          bt_destinations[i].valid = false;//the point should no longer be considered in future
+          continue;
+        }
+      }
+  }//if !first call
+
+  vector<pair<int,int> > incumbent_cells(rcells*ccells);//make sure rcells and ccells are defined
+  int ic_no = 0;
+
+  if(first_call){
+    first_call = 0;
+    total_points = 0;
+    sk.push(pair<int,int>(start_grid_x,start_grid_y));
+    world_grid[start_grid_x][start_grid_y].parent = setParentUsingOrientation(ps);
+    world_grid[start_grid_x][start_grid_y].steps = 1;//visited
+    world_grid[start_grid_x][start_grid_y].r_id = robot_tag_id;
+    world_grid[start_grid_x][start_grid_y].bot_presence = make_pair(1, robot_tag_id);
+    last_grid_x = start_grid_x;
+    last_grid_y = start_grid_y;
+    target_grid_cell = make_pair(start_grid_x, start_grid_y);
+    addGridCellToPath(start_grid_x,start_grid_y,testbed);//add the current robot position as target point on first call, on subsequent calls the robot position would already be on the stack from the previous call assuming the function is called only when the robot has reached the next point
+    return;//added the first spiral point
+  }//if first_call
+  int ngr,ngc,wall;//neighbor row and column
+
+  while(!sk.empty()){//when no other explorable path remains, the robot simply keeps updating the path vector with the same grid cell(path point)
+    pair<int,int> t = sk.top();
+    int nx = t.first-world_grid[t.first][t.second].parent.first+1;//add one to avoid negative index
+    int ny = t.second-world_grid[t.first][t.second].parent.second+1;
+    if((wall=world_grid[t.first][t.second].wall_reference)>=0){//if the current cell has a wall reference to consider
+      ngr = t.first+aj[nx][ny][wall].first, ngc = t.second+aj[nx][ny][wall].second;
+      if(!isBlocked(ngr,ngc)){
+        if(ic_no == 0){//if you are not backtracking then only proceed, else store the point in possible destinations
+            status = 0;
+            addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
+            world_grid[ngr][ngc].wall_reference = -1;//to prevent wall exchange to right wall when following left wall
+            for(int j = 0; j < 4; j++)//incremental addition of backtracking points, we will just check the validity of backtracking point while assigning the backtrack point
+            {
+              if(j!=wall)
+              {
+                ngr = t.first+aj[nx][ny][j].first;
+                ngc = t.second+aj[nx][ny][j].second;
+                if(!isBlocked(ngr, ngc) && checkBactrackValidityForBSA_CM(t)) //modification from normal bactrack selection point
+                {
+                  bt_destinations.push_back(bt(t.first,t.second,ngr,ngc,sk));
+                  cout<<"added a new backtrack point "<<ngr<<" "<<ngc<<endl;
+                }
+              }
+            }//end of for j
+          break;// a new spiral point has been added
+        }
+      }
+    }//if wall
+
+    bool empty_neighbor_found = false;
+    for(int i = 0;i<4;i++){
+      ngr = t.first+aj[nx][ny][i].first;
+      ngc = t.second+aj[nx][ny][i].second;
+      if(isBlocked(ngr,ngc))continue;
+      empty_neighbor_found = true;
+      if(ic_no == 0){
+        status = 0;
+        addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
+        for(int j = i+1; j < 4; j++)//incremental addition of backtracking points
+        {
+          ngr = t.first+aj[nx][ny][j].first;
+          ngc = t.second+aj[nx][ny][j].second;
+          if(!isBlocked(ngr, ngc) && checkBactrackValidityForBSA_CM(t)) //modification from normal bactrack selection point
+          {
+            bt_destinations.push_back(bt(t.first,t.second,ngr,ngc,sk));
+            cout<<"added a new backtrack point "<<ngr<<" "<<ngc<<endl;
+          }
+        }//end of for j
+        break; //for i
+      }
+  }//for i
+    if(empty_neighbor_found && ic_no == 0) break;//a new spiral point has been added and this is not a backtrack iteration
+    incumbent_cells[ic_no] = t;//add the point as a possible return phase point
+    ic_no++;
+    sk.pop();
+    //cout<<"popped the top of stack"<<endl;
+    if(sk.empty()) break;//no new spiral point was added, there might be some bt points available 
+    pair<int,int> next_below = sk.top();
+    //the lines below are obsolete(at first thought) since the shortest path is being calculated, so wall reference and parent are obsolete on already visited points
+    world_grid[next_below.first][next_below.second].parent = t;
+    world_grid[next_below.first][next_below.second].wall_reference = 1;//since turning 180 degrees
+ }//while
+
+ if(ic_no == 0) return;
+ status = 1;
+ for(int j = 0; j < bots.size(); j++)
+ {
+      for(int i = 0;i<bots[j].bt_destinations.size();i++){
+      //check if backtrackpoint has been yet visited or not, or if that is still valid
+        pair <int, int> backtrack_parent;
+        backtrack_parent.first = bots[j].bt_destinations[i].parent.first;
+        backtrack_parent.second = bots[j].bt_destinations[i].parent.second;
+
+        if(!bots[j].bt_destinations[i].valid || world_grid[bots[j].bt_destinations[i].next_p.first][bots[j].bt_destinations[i].next_p.second].steps>0 || !bots[j].checkBactrackValidityForBSA_CM(backtrack_parent)){//the bt is no longer uncovered or backtack conditions no longer remain
+          bots[j].bt_destinations[i].valid = false;//the point should no longer be considered in future
+          continue;
+        }
+        vector<vector<nd> > tp;//a temporary map
+        PathPlannerGrid temp_planner(tp);
+        temp_planner.gridInversion(*this, bots[j].robot_tag_id);
+        temp_planner.start_grid_x = start_grid_x;//the current robot coordinates
+        temp_planner.start_grid_y = start_grid_y;
+        temp_planner.goal_grid_x = bots[j].bt_destinations[i].parent.first;
+        temp_planner.goal_grid_y = bots[j].bt_destinations[i].parent.second;
+        temp_planner.findshortest(testbed);
+        bots[j].bt_destinations[i].manhattan_distance = temp_planner.total_points;//-1 if no path found
+      }
+      sort(bots[j].bt_destinations.begin(),bots[j].bt_destinations.end(),[](const bt &a, const bt &b) -> bool{
+        return a.manhattan_distance<b.manhattan_distance;
+        });
+  }//for j
+
+  int it = 10000000;
+  vector <int> mind(bots.size(),10000000);
+  bool valid_found = false;
+  int min_global_manhattan_dist = 10000000, min_j_index = 0;
+  int min_valid_distance = 10000000, min_valid_index = 0;
+  for(int j = 0; j < bots.size(); j++)
+  {
+    for(int k = 0;k<bots[j].bt_destinations.size();k++){
+    if(!bots[j].bt_destinations[k].valid || bots[j].bt_destinations[k].manhattan_distance<0)//refer line 491
+      continue;
+    if(k!=10000000)//almost unnecesary condition
+      {
+        mind[j] = k;//closest valid backtracking point
+        it = k;
+        if(bots[j].bt_destinations[it].manhattan_distance < min_global_manhattan_dist)
+        {
+          min_global_manhattan_dist = bots[j].bt_destinations[it].manhattan_distance;
+          min_j_index = j;
+        }
+      }//if k
+     
+    int i;
+    for(i = 0;i<bots.size();i++){
+      if(bots[i].robot_id == origin_id || bots[i].robot_id == robot_id)//the tag is actually the origin or current robot itself
+        continue;
+      //all planners must share the same map
+      cout<<bots[i].robot_tag_id<<": Going for backtrack simulation bid!"<<endl;
+      int tp = bots[i].backtrackSimulateBid(bots[j].bt_destinations[it].next_p,testbed);// returns 10000000 if no path, checks if this particular backtrack point can be reached by other bot in lesser steps
+      if(tp<bots[j].bt_destinations[it].manhattan_distance)//a closer bot is available
+        {
+          cout<<"some other bot can reach earlier!\n";
+          break;
+        }
+      }//for i
+      if(i == bots.size()){
+        cout<<"valid bt point for this found!"<<endl;
+        valid_found = true;
+        if(bots[j].bt_destinations[it].manhattan_distance < min_valid_distance)
+        {
+          min_valid_distance = bots[j].bt_destinations[it].manhattan_distance;
+          min_valid_index = j;
+        }
+      cout<<"the best bt point yet is: "<<bots[min_valid_index].bt_destinations[mind[min_valid_index]].next_p.first<<" "<<bots[min_valid_index].bt_destinations[mind[min_valid_index]].next_p.second<<endl;
+      break;
+      } //if(i==)
+    }//for k
+  }//for j
+
+  int bot_index = 0;
+  if(!valid_found && mind[min_j_index] == 10000000){//no bt point left
+    status = 2;
+    cout<<"no bt point left for robot "<<robot_tag_id<<endl;
+    return;
+  }
+  if(!valid_found && mind[min_j_index] != 10000000)//no point exists for which the given robot is the closest
+    {
+      status = 1;
+      it = mind[min_j_index];
+      bot_index = min_j_index;
+    }
+  else if(valid_found)
+  {
+    status = 1;
+    it = mind[min_valid_index];
+    bot_index = min_valid_index;
+  }
+  //else it stores the index of the next bt point
+  //sk = bt_destinations[it].stack_state;
+  cout<<"Just found the best backtrack point. Adding it!\n";
+  addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,bots[bot_index].bt_destinations[it].next_p.first,bots[bot_index].bt_destinations[it].next_p.second,bots[bot_index].bt_destinations[it].parent,testbed);
+
+}//function
+
 
 
 void PathPlannerGrid::BSACoverage(AprilInterfaceAndVideoCapture &testbed,robot_pose &ps){
@@ -828,9 +1109,22 @@ void PathPlannerGrid::drawPath(Mat &image){
   for(i = 0;i<total_points-1;i++){
     line(image,Point(pixel_path_points[i].first,pixel_path_points[i].second),Point(pixel_path_points[i+1].first,pixel_path_points[i+1].second),path_color,2); 
   }
-  circle(image, Point(pixel_path_points[i].first,pixel_path_points[i].second), 5, path_color, CV_FILLED, 8, 0);
-
-
+  if(total_points!=0)//to prevent segmentation faul in case no bot tag is present.
+  {
+    circle(image, Point(pixel_path_points[i].first,pixel_path_points[i].second), 5, path_color, CV_FILLED, 8, 0); 
+  }
+  
+  for(i = 0; i < bt_destinations.size(); i++)
+  {
+    if(bt_destinations[i].valid)
+    {
+      int ax,ay;
+      ax = world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].tot_x/world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].tot;
+      ay = world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].tot_y/world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].tot;
+      line(image,Point(ax-10, ay-10),Point(ax+10, ay+10),path_color,2); 
+      line(image,Point(ax+10, ay-10),Point(ax-10, ay+10),path_color,2);
+    }
+  }
 }
 
 
