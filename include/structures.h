@@ -30,15 +30,14 @@ struct nd{
   std::pair<bool, int> bot_presence; //bool = 1 implies bot is present in particular cell, the int is for robot id if the bot that is present
   int is_target_nd; //0- the node is not the target of any bot; 1- target of one bot and hence the bot is free to move here; 2 or more; node is not free to move, collison avoidance to be enforced;
 
-  pair <bool, int> isBacktrackPoint; //this point is used in case the present target point is a bactrack
 
   nd():tot(0),blacks(0),whites(0),tot_x(0),tot_y(0){
-    r_id = wall_reference = parent.first = parent.second = bot_presence.second = isBacktrackPoint.second = -1;
-    steps = bot_presence.first = isBacktrackPoint.first = 0;
+    r_id = wall_reference = parent.first = parent.second = bot_presence.second = -1;
+    steps = bot_presence.first = 0;
   }
   void emptyCell(){
-    tot = blacks = whites = tot_x = tot_y = steps = bot_presence.first = isBacktrackPoint = 0;
-    parent.first = parent.second = wall_reference = r_id = bot_presence.second = isBacktrackPoint.second =-1;
+    tot = blacks = whites = tot_x = tot_y = steps = bot_presence.first = 0;
+    parent.first = parent.second = wall_reference = r_id = bot_presence.second = -1;
   }
 };
 struct bt{

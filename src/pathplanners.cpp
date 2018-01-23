@@ -333,9 +333,6 @@ void PathPlannerGrid::addBacktrackPointToStackAndPath(stack<pair<int,int> > &sk,
       //int cellrow = incumbent_cells[i].first, cellcol = incumbent_cells[i].second;
       //addGridCellToPath(cellrow,cellcol,testbed);
     //}
-    world_grid[ngr][ngc].isBacktrackPoint.first = 1;
-    world_grid[ngr][ngc].isBacktrackPoint.second = robot_tag_id;
-
     ic_no = 0;//reset to zero
   }
   world_grid[ngr][ngc].wall_reference = getWallReference(t.first,t.second,world_grid[t.first][t.second].parent.first, world_grid[t.first][t.second].parent.second);
@@ -343,11 +340,6 @@ void PathPlannerGrid::addBacktrackPointToStackAndPath(stack<pair<int,int> > &sk,
   world_grid[ngr][ngc].parent = t;
   world_grid[ngr][ngc].r_id = robot_tag_id;
   addGridCellToPath(ngr,ngc,testbed);
-  if(world_grid[ngr][ngc].isBacktrackPoint.first==1 && world_grid[ngr][ngc].isBacktrackPoint.second == robot_tag_id)
-  {
-     world_grid[ngr][ngc].steps = 0;
-     world_grid[ngr][ngc].r_id = -1;
-  }
   sk.push(pair<int,int>(ngr,ngc));
 }
 
@@ -480,7 +472,6 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
     {
       if(!bt_destinations[i].valid || world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].steps>0){//the bt is no longer uncovered
         bt_destinations[i].valid = false;//the point should no longer be considered in future
-        world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].isBacktrackPoint = 0;
         continue;
       }
     }
@@ -871,38 +862,8 @@ void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndV
   if(!first_call){
     //cout<<"in second and subsequent calls"<<endl;
     if(!sk.empty()){
+
       pair<int,int> t = sk.top();
-      if(world_grid[t.first][t.second].steps==1 && world_grid[t.first][t.second].r_id!=robot_tag_id)//this means the point was backtrack point and has been visited by some other robot
-      {
-        //now we need to clear the stack and resize the pathpoints.
-        // int initial_size = path_points.size();
-        // for(int i = initial_size-1; i >= next_target_index; i--)
-        // {
-        //   path_points.pop_back();
-        //   pixel_path_points.pop_back();
-        // }
-        // total_points = next_target_index;
-        for(int i = next_target_index; i < path_points.size(); i++)
-        {
-          if(next_target_index==0) break;
-          path_points[i] = path_points[next_target_index];
-          pixel_path_points[i] = pixel_path_points[next_target_index];
-        }
-        cout<<"total_points: "<<total_points<<endl;
-        cout<<"path_points.size(): "<<path_points.size()<<endl;
-        cout<<"next_target_index: "<<endl;
-        //cv::waitKey(0);
-        /*while(!sk.empty())
-        {
-          sk.pop();
-        }*/
-        cout<<"Someone else has reached the said backtrack point before this roobt, so now it will look for another"<<endl;
-        int ax= pixel_path_points[next_target_index].first/cell_size_x;
-        int ay= pixel_path_points[next_target_index].second/cell_size_y;
-        sk.pop();
-        sk.push(pair<int,int>(ax,ay));
-        return;
-      }
       world_grid[start_grid_x][start_grid_y].bot_presence = make_pair(1, robot_tag_id); //assigning bot presence bit to current cell, //this would come to use in collision avoidance algorithm
       if(last_grid_x != start_grid_x || last_grid_y != start_grid_y)
       {
@@ -914,9 +875,6 @@ void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndV
         cout<<"the robot has not yet reached the old target"<<t.first<<" "<<t.second<<endl;
         return;
       }
-      world_grid[t.first][t.second].steps = 1;//this means the robot has reached the last destinantion, and marking the steps, incase it was a backtrack point and it was zero earlier.
-      world_grid[t.first][t.second].r_id = robot_tag_id;
-
     }
     //checking validit of backtrackpoints made as of now.
     for(int i = 0; i< bt_destinations.size();i++){
@@ -925,7 +883,6 @@ void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndV
     backtrack_parent.second = bt_destinations[i].parent.second;
     if(!bt_destinations[i].valid || world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].steps>0 /*|| !checkBactrackValidityForBSA_CM(backtrack_parent)*/){//the bt is no longer uncovered or backtack conditions no longer remain
           bt_destinations[i].valid = false;//the point should no longer be considered in future
-          world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].isBacktrackPoint = 0;
           continue;
         }
       }
