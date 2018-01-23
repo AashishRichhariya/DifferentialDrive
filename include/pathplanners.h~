@@ -44,16 +44,23 @@ class PathPlannerGrid{
     int deadlock_check_counter; //if the value of this counter gets bigger then 1, it means there's deadlock
     std::pair<int, int> target_grid_cell;
 
-    PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0){
+//below variable is used for the bactrack selection algorithm as given in two way proximity
+
+    std::pair <int, int> blockedcellcheck[3][3][2][3];
+
+    bool isBactrackPoint; //this point is used in case the present target point is a bactrack
+
+    PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), isBactrackPoint(0){
       initializeLocalPreferenceMatrix();
+      initializeBactrackSearchMatrix();
       path_color = cv::Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
       first_call = 1;
       status = 0;
-      target_grid_cell = make_pair(-1, -1);
-		
+      target_grid_cell = make_pair(-1, -1);		
     }
-    PathPlannerGrid(std::vector<std::vector<nd> > &wg):total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),world_grid(wg),last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0){
+    PathPlannerGrid(std::vector<std::vector<nd> > &wg):total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),world_grid(wg),last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0),isBactrackPoint(0){
       initializeLocalPreferenceMatrix();
+      initializeBactrackSearchMatrix();
       path_color = cv::Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
       first_call = 1;
       status = 0;
@@ -115,7 +122,9 @@ class PathPlannerGrid{
     //following 3 functions were added for the updated backtrack search Algo
     int checkBactrackCondition(pair<int, int> p1, pair <int, int> p2);
     bool checkBactrackValidityForBSA_CM(pair <int, int> t);
-    void BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots)
+    bool bactrackValidityForBSA_CM(pair <int, int> t, int nx, int ny, int j);
+    void BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots);
+    void initializeBactrackSearchMatrix();//to initialize the matrix which help in backtrack search, namely blockedcellcheck
     
 };
 
