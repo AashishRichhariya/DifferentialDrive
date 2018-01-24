@@ -145,7 +145,11 @@ int main(int argc, char* argv[]) {
   vector<PathPlannerGrid> planners(max_robots,PathPlannerGrid(tp));
 
   int algo_select;
-  cout<<"\nWhat Algo do you want to compare?\n 1: BSA-CM (Basic)\n 2: BSA-CM with updated Backtrack Search\n \nEnter here: ";
+  cout<<"\nWhat Algo do you want to compare?\n" 
+  "1: BSA-CM (Basic)\n" 
+  "2: BSA-CM with updated Backtrack Search\n" 
+  "3: Boustrophedon Motion With Updated Bactrack Search\n"
+  "\nEnter here: ";
   cin>>algo_select;
 
   while (true){
@@ -209,6 +213,7 @@ int main(int argc, char* argv[]) {
       {
       case 1: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners); break;
       case 2: bots[i].plan.BSACoverageWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners); break;
+      case 3: bots[i].plan.BoustrophedonMotionWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners); break;
       default: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners);   
       }   
     }
