@@ -478,6 +478,13 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
         continue;
       }
     }
+
+    for(int i = 0; i< uev_destinations.size();i++){
+     if(!uev_destinations[i].valid || world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].steps>0 ){//the bt is no longer uncovered or backtack conditions no longer remain
+          uev_destinations[i].valid = false;//the point should no longer be considered in future
+          continue;
+        }
+    }
     
   }
   //cout<<"after first call check"<<endl;
@@ -535,6 +542,7 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
                 }
                 if(k == bt_destinations.size()){//this is new point
                 bt_destinations.push_back(bt(t.first,t.second,ngr,ngc,sk));
+                uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
                 cout<<"added a new backtrack point "<<ngr<<" "<<ngc<<endl;
                 }
               }
@@ -581,6 +589,7 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
             }
             if(k == bt_destinations.size()){//this is new point
             bt_destinations.push_back(bt(t.first,t.second,ngr,ngc,sk));
+            uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
             cout<<"added a new backtrack point "<<ngr<<" "<<ngc<<endl;
             }
           }
@@ -597,6 +606,7 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
         if(i == bt_destinations.size()){//this is new point
            cout<<"**********************Alarm#2***********************************\n";
           bt_destinations.push_back(bt(t.first,t.second,ngr,ngc,sk));
+          uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
           cout<<"added a new backtrack point "<<ngr<<" "<<ngc<<endl;
           //cv::waitKey(0);
         }
@@ -879,14 +889,22 @@ void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndV
     }
     //checking validit of backtrackpoints made as of now.
     for(int i = 0; i< bt_destinations.size();i++){
-    pair<int, int> backtrack_parent;
-    backtrack_parent.first = bt_destinations[i].parent.first;
-    backtrack_parent.second = bt_destinations[i].parent.second;
-    if(!bt_destinations[i].valid || world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].steps>0 /*|| !checkBactrackValidityForBSA_CM(backtrack_parent)*/){//the bt is no longer uncovered or backtack conditions no longer remain
-          bt_destinations[i].valid = false;//the point should no longer be considered in future
+      pair<int, int> backtrack_parent;
+      backtrack_parent.first = bt_destinations[i].parent.first;
+      backtrack_parent.second = bt_destinations[i].parent.second;
+      if(!bt_destinations[i].valid || world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].steps>0 /*|| !checkBactrackValidityForBSA_CM(backtrack_parent)*/){//the bt is no longer uncovered or backtack conditions no longer remain
+            bt_destinations[i].valid = false;//the point should no longer be considered in future
+            continue;
+          }
+    }
+
+    //checking validity of uevpoints made as of now.
+    for(int i = 0; i< uev_destinations.size();i++){
+     if(!uev_destinations[i].valid || world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].steps>0 ){//the bt is no longer uncovered or backtack conditions no longer remain
+          uev_destinations[i].valid = false;//the point should no longer be considered in future
           continue;
         }
-      }
+    }
   }//if !first call
 
   vector<pair<int,int> > incumbent_cells(rcells*ccells);//make sure rcells and ccells are defined
@@ -951,6 +969,20 @@ void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndV
             }
             addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
             world_grid[ngr][ngc].wall_reference = -1;//to prevent wall exchange to right wall when following left wall
+            for(int j = 0; j < 4; j++)//incremental addition of backtracking points
+            {
+              if(j!=wall)
+              {
+                ngr = t.first+aj[nx][ny][j].first;
+                ngc = t.second+aj[nx][ny][j].second;
+                if(!isBlocked(ngr, ngc))
+                {                  
+                  uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+                  cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;                  
+                }
+              }
+              
+            }//end of for j
                         
           break;// a new spiral point has been added
         }
@@ -998,9 +1030,20 @@ void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndV
           }
         }
         addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
+        for(int j = i+1; j < 4; j++)//incremental addition of backtracking points
+        {
+          ngr = t.first+aj[nx][ny][j].first;
+          ngc = t.second+aj[nx][ny][j].second;
+          if(!isBlocked(ngr, ngc))
+          {
+            uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+            cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;
+            
+          }
+        }//end of for j
                 
         break; //for i
-      }
+      }//if ic_no
   }//for i
     if(empty_neighbor_found && ic_no == 0) break;//a new spiral point has been added and this is not a backtrack iteration
     incumbent_cells[ic_no] = t;//add the point as a possible return phase point
@@ -1256,7 +1299,14 @@ void PathPlannerGrid::BoustrophedonMotionWithUpdatedBactrackSelection(AprilInter
             bt_destinations[i].valid = false;//the point should no longer be considered in future
             continue;
         }
-        } 
+      } 
+
+      for(int i = 0; i< uev_destinations.size();i++){
+      if(!uev_destinations[i].valid || world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].steps>0 ){//the bt is no longer uncovered or backtack conditions no longer remain
+          uev_destinations[i].valid = false;//the point should no longer be considered in future
+          continue;
+        }
+      }
     }//if !first call
 
     vector<pair<int,int> > incumbent_cells(rcells*ccells);//make sure rcells and ccells are defined
@@ -1330,7 +1380,17 @@ void PathPlannerGrid::BoustrophedonMotionWithUpdatedBactrackSelection(AprilInter
             }
           }
         }
-        addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);                    
+        addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
+        for(int j = i+1; j < 4; j++)//incremental addition of backtracking points
+        {
+          ngr = t.first+preference[j].first;
+          ngc = t.second+preference[j].second;
+          if(!isBlocked(ngr, ngc))
+          {
+            uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+            cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+          }
+        }                    
         break; //for i
       }//if ic_no
     }//for i 
@@ -1635,6 +1695,21 @@ void PathPlannerGrid::drawPath(Mat &image){
       line(image,Point(ax+10, ay-10),Point(ax-10, ay+10),path_color,2);
     }
   }
+
+  for(i = 0; i < uev_destinations.size(); i++)
+  {
+    if(uev_destinations[i].valid)
+    {
+      int ax,ay;
+      ax = world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].tot_x/world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].tot;
+      ay = world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].tot_y/world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].tot;
+      line(image,Point(ax-10, ay-10),Point(ax+10, ay-10),path_color,1); 
+      line(image,Point(ax+10, ay-10),Point(ax+10, ay+10),path_color,1);
+      line(image,Point(ax+10, ay+10),Point(ax-10, ay+10),path_color,1);
+      line(image,Point(ax-10, ay+10),Point(ax-10, ay-10),path_color,1);
+    }
+  }
+
 }
 
 //for the class PathPlannerUser

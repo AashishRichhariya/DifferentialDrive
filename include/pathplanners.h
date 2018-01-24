@@ -48,6 +48,9 @@ class PathPlannerGrid{
 
     std::pair <int, int> blockedcellcheck[3][3][2][3];
 
+//below variable is used to store the unvisited empty neighbours by robots. They are same as bt points in the BSA-Cm bactrack scheme, but not so in case of other schemes
+    vector<uev> uev_destinations;
+
     
 
     PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0){
@@ -86,6 +89,7 @@ class PathPlannerGrid{
       sk = pt.sk;
       first_call = pt.first_call;
       bt_destinations = pt.bt_destinations;
+      uev_destinations = pt.uev_destinations;
       return *this;
     }
     double distance(double x1,double y1,double x2,double y2);
