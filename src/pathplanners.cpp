@@ -410,7 +410,7 @@ int PathPlannerGrid::backtrackSimulateBid(pair<int,int> target,AprilInterfaceAnd
     }
     if(empty_neighbor_found) continue;
     break;//if control reaches here, it means that the spiral phase simulation is complete and the target was not visited 
-  }
+  }//while
   //check whether the target is approachable from current robot
   //for(int i = 0;i<4;i++){
     //ngr = target.first+aj[0][1][i].first;//aj[0][1] gives the global preference iteration of the neighbors
@@ -856,8 +856,6 @@ bool PathPlannerGrid::bactrackValidityForBSA_CM(pair <int, int> t, int nx, int n
   return 0;
 }
 
-
-
 void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots){
   if(setRobotCellCoordinates(testbed.detections)<0)//set the start_grid_y, start_grid_x
     return;
@@ -1162,6 +1160,75 @@ void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndV
 
 }//function
 
+int PathPlannerGrid::backtrackSimulateBidForBoustrophedonMotion(pair<int,int> target,AprilInterfaceAndVideoCapture &testbed){
+  if(setRobotCellCoordinates(testbed.detections)<0)//set the start_grid_y, start_grid_x though we don't needto use them in this function(but is just a weak confirmation that the robot is in current view), doesn't take into account whether the robot is in the current view or not(the variables might be set from before), you need to check it before calling this function to ensure correct response
+      return 10000000;
+    if(sk.empty())//the robot is inactive
+      return 10000000;//it can't ever reach
+    if(status==1 || status==2)
+      return 10000000;//the bot is in either return mode.
+    stack<pair<int,int> > skc = sk;
+  vector<vector<nd> > world_gridc = world_grid;//copy current grid
+  vector<vector<nd> > tp;//a temporary map
+  PathPlannerGrid plannerc(tp);
+  plannerc.rcells = rcells;
+  plannerc.ccells = ccells;
+  plannerc.world_grid = world_gridc;//world_gridc won't be copied since world_grid is a reference variable
+  int nx,ny,ngr,ngc,wall;//neighbor row and column
+  int step_distance = 0;
+  vector <pair<int,int>> preference(4);
+    preference[0].first = -1, preference[0].second = 0; 
+    preference[1].first = 1, preference[1].second = 0; 
+    preference[2].first = 0, preference[2].second = 1; 
+    preference[3].first = 0, preference[3].second = -1; 
+  while(true){
+    cout<<"\n\nCompleting the motion\n"<<endl;
+    pair<int,int> t = skc.top();
+    cout<<"current pt: "<<t.first<<" "<<t.second<<endl;
+    nx = t.first-world_gridc[t.first][t.second].parent.first+1;//add one to avoid negative index
+    ny = t.second-world_gridc[t.first][t.second].parent.second+1;
+    bool empty_neighbor_found = false;
+    for(int i = 0;i<4;i++){
+      cout<<"i: "<<i<<endl;
+      ngr = t.first+preference[i].first;//priority in following order: up-down-right-left
+      ngc = t.second+preference[i].second;
+      //if(plannerc.isBlocked(ngr,ngc))
+      if(!isEmpty(ngr,ngc) || world_gridc[ngr][ngc].steps)//don't know why but isBlocked is not working here in some cases
+        continue;
+      empty_neighbor_found = true;
+      cout<<"Empty neighbor found!, they are: "<<ngr<<" "<<ngc<<endl;
+      world_gridc[ngr][ngc].steps = 1;
+      world_gridc[ngr][ngc].parent = t;
+      world_gridc[ngr][ngc].r_id = robot_tag_id;
+      skc.push(pair<int,int>(ngr,ngc));
+      step_distance++;
+      if(ngr == target.first && ngc == target.second)//no need to go any further
+        return step_distance;
+      else
+        break;//already added a new point in path point
+    }
+    if(empty_neighbor_found) continue;
+    break;//if control reaches here, it means that the spiral phase simulation is complete and the target was not visited 
+  }//while
+
+  vector<vector<nd> > tp2;//a temporary map
+  PathPlannerGrid temp_planner(tp2);
+  temp_planner.gridInversion(plannerc, robot_tag_id);
+  temp_planner.start_grid_x = skc.top().first;
+  temp_planner.start_grid_y = skc.top().second;
+  temp_planner.goal_grid_x = target.first;
+  temp_planner.goal_grid_y = target.second;
+  temp_planner.findshortest(testbed);
+  if(temp_planner.total_points==-1)
+  {
+    cout<<"the robot can't return to given target\n";
+    return 10000000;//the robot can't return to given target
+  }
+  step_distance += temp_planner.total_points;
+  cout<<"The robot can reach in "<<step_distance<<" steps\n";
+  return step_distance;//there might be a better way via some other adj cell, but difference would be atmost 1 unit cell
+
+}//function
 
 void PathPlannerGrid::BoustrophedonMotionWithUpdatedBactrackSelection(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots){
   if(setRobotCellCoordinates(testbed.detections)<0)//set the start_grid_y, start_grid_x
@@ -1375,7 +1442,7 @@ void PathPlannerGrid::BoustrophedonMotionWithUpdatedBactrackSelection(AprilInter
           continue;
         //all planners must share the same map
         cout<<bots[i].robot_tag_id<<": Going for backtrack simulation bid!"<<endl;
-        int tp = bots[i].backtrackSimulateBid(bots[j].bt_destinations[it].next_p,testbed);// returns 10000000 if no path, checks if this particular backtrack point can be reached by other bot in lesser steps
+        int tp = bots[i].backtrackSimulateBidForBoustrophedonMotion(bots[j].bt_destinations[it].next_p,testbed);// returns 10000000 if no path, checks if this particular backtrack point can be reached by other bot in lesser steps
         if(tp<bots[j].bt_destinations[it].manhattan_distance)//a closer bot is available
           {
             cout<<"some other bot can reach earlier!\n";
@@ -1569,7 +1636,6 @@ void PathPlannerGrid::drawPath(Mat &image){
     }
   }
 }
-
 
 //for the class PathPlannerUser
 void PathPlannerUser::addPoint(int px, int py, double x,double y){
