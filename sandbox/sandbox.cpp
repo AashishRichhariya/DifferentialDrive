@@ -149,6 +149,7 @@ int main(int argc, char* argv[]) {
   "1: BSA-CM (Basic)\n" 
   "2: BSA-CM with updated Backtrack Search\n" 
   "3: Boustrophedon Motion With Updated Bactrack Search\n"
+  "4: FAST\n"
   "\nEnter here: ";
   cin>>algo_select;
 
@@ -214,6 +215,7 @@ int main(int argc, char* argv[]) {
       case 1: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners); break;
       case 2: bots[i].plan.BSACoverageWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners); break;
       case 3: bots[i].plan.BoustrophedonMotionWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners); break;
+      case 4: bots[i].plan.FAST(testbed,bots[i].pose, 2.5,planners); break;
       default: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners);   
       }   
     }
