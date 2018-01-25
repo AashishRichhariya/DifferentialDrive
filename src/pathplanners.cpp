@@ -2047,7 +2047,7 @@ void PathPlannerGrid::FAST(AprilInterfaceAndVideoCapture &testbed, robot_pose &p
   if(!valid_found && mind[min_j_index] == 10000000){//no bt point left
       status = 2;
       cout<<"no bt point left for robot, Searching Amongst UEVs! "<<robot_tag_id<<endl;
-       return;
+      return;
   }
   if(!valid_found && mind[min_j_index] != 10000000)//no point exists for which the given robot is the closest
   {
@@ -2221,10 +2221,10 @@ void PathPlannerGrid::drawPath(Mat &image){
       int ax,ay;
       ax = world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].tot_x/world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].tot;
       ay = world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].tot_y/world_grid[uev_destinations[i].next_p.first][uev_destinations[i].next_p.second].tot;
-      line(image,Point(ax-10, ay-10),Point(ax+10, ay-10),path_color,1); 
-      line(image,Point(ax+10, ay-10),Point(ax+10, ay+10),path_color,1);
-      line(image,Point(ax+10, ay+10),Point(ax-10, ay+10),path_color,1);
-      line(image,Point(ax-10, ay+10),Point(ax-10, ay-10),path_color,1);
+      line(image,Point(ax-15, ay-15),Point(ax+15, ay-15),path_color,2); 
+      line(image,Point(ax+15, ay-15),Point(ax+15, ay+15),path_color,2);
+      line(image,Point(ax+15, ay+15),Point(ax-15, ay+15),path_color,2);
+      line(image,Point(ax-15, ay+15),Point(ax-15, ay-15),path_color,2);
     }
   }
 }
