@@ -27,6 +27,7 @@ struct bot_config{
 
 int check_deadlock(vector<bot_config> &bots, int index)
 {
+	
   cout<<"\nChecking deadlock presence:\n"<<endl;
   for(int i = 0; i < bots.size(); i++)
   {
