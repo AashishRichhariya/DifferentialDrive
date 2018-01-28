@@ -192,7 +192,7 @@ int main(int argc, char* argv[]) {
     //present(but not detected) would be considered an obstacle
     //no two robots must be present in the same grid cell(result is undefined)
     if(first_iter){
-      first_iter = 0;
+      //first_iter = 0; 
       bots[0].plan.overlayGrid(testbed.detections,image_gray);//overlay grid completely reintialize the grid, we have to call it once at the beginning only when all robots first seen simultaneously(the surrounding is assumed to be static) not every iteration
       for(int i = 1;i<bots.size();i++){
         bots[i].plan.rcells = bots[0].plan.rcells;
@@ -206,6 +206,15 @@ int main(int argc, char* argv[]) {
       //for bot 0, the origin and robot index would be the same
       bots[i].plan.origin_id = bots[0].plan.robot_id;//set origin index of every path planner which is the index of tag 0 in detections vector given by RHS
       planners[i] = bots[i].plan;
+    }
+
+    if(first_iter)
+    {
+    	first_iter = 0;
+    	if(algo_select==5)
+    	{
+    		bots[0].plan.defineVoronoiPartition(testbed, planners, image);
+    	}    	
     }
 
     for(int i = 1;i<bots.size();i++){
@@ -267,7 +276,7 @@ int main(int argc, char* argv[]) {
       for(int i = 0;i<n;i++){
         testbed.detections[i].draw(image);
       }
-      bots[origin_tag_id].plan.drawGrid(image);
+      bots[origin_tag_id].plan.drawGrid(image, planners);
       for(int i = 1;i<bots.size();i++){
         bots[i].plan.drawPath(image);
       }
