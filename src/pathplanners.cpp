@@ -2392,6 +2392,7 @@ void PathPlannerGrid::defineVoronoiPartition(AprilInterfaceAndVideoCapture &test
           min_man_dist = manhattan_dist;
           world_grid[r][c].voronoi_id = k;
         }
+        
       }
       bots[world_grid[r][c].voronoi_id].total_voronoi_cells++;
     }
