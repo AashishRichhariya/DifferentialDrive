@@ -27,7 +27,6 @@ struct bot_config{
 
 int check_deadlock(vector<bot_config> &bots, int index)
 {
-	
   cout<<"\nChecking deadlock presence:\n"<<endl;
   for(int i = 0; i < bots.size(); i++)
   {
@@ -151,6 +150,7 @@ int main(int argc, char* argv[]) {
   "2: BSA-CM with updated Backtrack Search\n" 
   "3: Boustrophedon Motion With Updated Bactrack Search\n"
   "4: FAST\n"
+  "5: Voronoi Partition Based Online Coverage\n"
   "\nEnter here: ";
   cin>>algo_select;
 
@@ -214,7 +214,7 @@ int main(int argc, char* argv[]) {
     	first_iter = 0;
     	if(algo_select==5)
     	{
-    		bots[0].plan.defineVoronoiPartition(testbed, planners, image);
+    		bots[0].plan.defineVoronoiPartition(testbed, planners);
     	}    	
     }
 
@@ -226,6 +226,7 @@ int main(int argc, char* argv[]) {
       case 2: bots[i].plan.BSACoverageWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners); break;
       case 3: bots[i].plan.BoustrophedonMotionWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners); break;
       case 4: bots[i].plan.FAST(testbed,bots[i].pose, 2.5,planners); break;
+      case 5: bots[i].plan.VoronoiPartitionBasedOnlineCoverage(testbed,bots[i].pose, 2.5,planners); break;
       default: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners);   
       }   
     }
@@ -279,6 +280,7 @@ int main(int argc, char* argv[]) {
       }
       bots[origin_tag_id].plan.drawGrid(image, planners);
       for(int i = 1;i<bots.size();i++){
+      	//bots[i].plan = planners[i];
         bots[i].plan.drawPath(image);
       }
       //add a next point circle draw for visualisation

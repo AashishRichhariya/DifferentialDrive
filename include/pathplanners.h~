@@ -35,7 +35,7 @@ class PathPlannerGrid{
     //below two/three are used exclusively for incrementalbsa function, don't use for any other purpose
     int first_call;
     vector<bt> bt_destinations;
-    int status; // 0- spiral; 1- return; 2- inactive
+    int status; // 0- spiral; 1- return; 2- inactive, used in BSA type algorithms
 
 //below variable is used collision avoidance algo:
     
@@ -52,10 +52,12 @@ class PathPlannerGrid{
     vector<uev> uev_destinations;
 
     int total_voronoi_cells; //stores total number of voronoi cells alloted to a bot
-
+    int current_behaviour; //0- Go to Boundary; 1- Cover Boundary; 2- Cover rest of the voronoi partition, used in voronoi partition based Algo's
+    int preferred_x; int preferred_y;//the preferred direction for go-to-boundary behaviour in voronoi cells
+    vector <bp> boundary_points;//boundary points of voronoi partition
     
 
-    PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0){
+    PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0){
       initializeLocalPreferenceMatrix();
       initializeBactrackSearchMatrix();
       path_color = cv::Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
@@ -63,7 +65,7 @@ class PathPlannerGrid{
       status = 0;
       target_grid_cell = make_pair(-1, -1);		
     }
-    PathPlannerGrid(std::vector<std::vector<nd> > &wg):total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg),last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0){
+    PathPlannerGrid(std::vector<std::vector<nd> > &wg):total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg),last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0){
       initializeLocalPreferenceMatrix();
       initializeBactrackSearchMatrix();
       path_color = cv::Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
@@ -92,6 +94,7 @@ class PathPlannerGrid{
       first_call = pt.first_call;
       bt_destinations = pt.bt_destinations;
       uev_destinations = pt.uev_destinations;
+      boundary_points = pt.boundary_points;
       return *this;
     }
     double distance(double x1,double y1,double x2,double y2);
@@ -106,7 +109,7 @@ class PathPlannerGrid{
     bool pixelIsInsideTag(int x,int y,std::vector<AprilTags::TagDetection> &detections,int ind);
     int setRobotCellCoordinates(std::vector<AprilTags::TagDetection> &detections);
     int setGoalCellCoordinates(std::vector<AprilTags::TagDetection> &detections);
-    void drawGrid(cv::Mat &image);
+    void drawGrid(cv::Mat &image, vector<PathPlannerGrid> &bots);
     //image rows and columns are provided
     void initializeGrid(int r,int c);
     //check for obstacles but excludes the black pixels obtained from apriltags
@@ -142,6 +145,8 @@ class PathPlannerGrid{
     void setPathColor();//to set the color of path
 
     void defineVoronoiPartition(AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &bots, cv::Mat &image);
+
+    void VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots);
     
     
 };
