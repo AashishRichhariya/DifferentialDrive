@@ -55,9 +55,11 @@ class PathPlannerGrid{
     int current_behaviour; //0- Go to Boundary; 1- Cover Boundary; 2- Cover rest of the voronoi partition, used in voronoi partition based Algo's
     int preferred_x; int preferred_y;//the preferred direction for go-to-boundary behaviour in voronoi cells
     vector <bp> boundary_points;//boundary points of voronoi partition
+    bool boundary_lost;//this variable gets true when we are covering the boundary of voronoi partition and it gets lost due to some obstacle
+    int voronoi_wall;
     
 
-    PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0){
+    PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0), boundary_lost(0), voronoi_wall(2){
       initializeLocalPreferenceMatrix();
       initializeBactrackSearchMatrix();
       path_color = cv::Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
@@ -65,7 +67,7 @@ class PathPlannerGrid{
       status = 0;
       target_grid_cell = make_pair(-1, -1);		
     }
-    PathPlannerGrid(std::vector<std::vector<nd> > &wg):total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg),last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0){
+    PathPlannerGrid(std::vector<std::vector<nd> > &wg):total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg),last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0), boundary_lost(0), voronoi_wall(2){
       initializeLocalPreferenceMatrix();
       initializeBactrackSearchMatrix();
       path_color = cv::Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
@@ -144,7 +146,7 @@ class PathPlannerGrid{
 
     void setPathColor();//to set the color of path
 
-    void defineVoronoiPartition(AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &bots, cv::Mat &image);
+    void defineVoronoiPartition(AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &bots);
 
     void VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots);
     
