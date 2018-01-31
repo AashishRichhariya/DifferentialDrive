@@ -101,7 +101,7 @@ void PathPlannerGrid::gridInversion(const PathPlannerGrid &planner,int rid){//in
       }
       else //in case it's a vornoi partition based implementation
       {
-        if(planner.world_grid[i][j].steps > 0 || planner.world_grid[i][j].voronoi_id!= planner.robot_tag_id/* && planner.world_grid[i][j].r_id > 0*//*==rid*/){//the cell was visitable by given rid
+        if(planner.world_grid[i][j].steps > 0 && planner.world_grid[i][j].voronoi_id == planner.robot_tag_id/* && planner.world_grid[i][j].r_id > 0*//*==rid*/){//the cell was visitable by given rid
           world_grid[i][j].blacks = world_grid[i][j].whites = world_grid[i][j].steps = 0;
           world_grid[i][j].tot_x = planner.world_grid[i][j].tot_x;
           world_grid[i][j].tot_y = planner.world_grid[i][j].tot_y;
@@ -126,7 +126,7 @@ void PathPlannerGrid::addPoint(int ind,int px, int py, double x,double y){
 }
 
 bool PathPlannerGrid::isEmpty(int r,int c){//criteria based on which to decide whether cell is empty
-  if(r<0 || c<0 || r>=rcells-1 || c>=ccells-1 || world_grid[r][c].blacks > world_grid[r][c].whites*0.2){//more than 20 percent
+  if(r<0 || c<0 || r> rcells-1 || c>=ccells-1 || world_grid[r][c].blacks > world_grid[r][c].whites*0.2){//more than 20 percent
     return false;
   }
   return true;
@@ -154,7 +154,7 @@ bool PathPlannerGrid::pixelIsInsideTag(int x,int y,vector<AprilTags::TagDetectio
   return true;
 }
 //note the different use of r,c and x,y in the context of matrix and image respectively
-//check for obstacles but excludes the black pixels obtained from apriltags
+//check for obstacles but excludes the black pixels ouvained from apriltags
 //to use this function to check if robot is in frame, you must set start_grid_x, y to -1 before processing image
 int PathPlannerGrid::setRobotCellCoordinates(vector<AprilTags::TagDetection> &detections){
   if(robot_id < 0){
@@ -287,8 +287,16 @@ void PathPlannerGrid::addGridCellToPath(int r,int c,AprilInterfaceAndVideoCaptur
 }
 
 bool PathPlannerGrid::isBlocked(int ngr, int ngc){
-  if(!isEmpty(ngr,ngc) || world_grid[ngr][ngc].steps)
+  if(ngr >= 0 && ngc >=0 && ngr < rcells && ngc < ccells -1 && world_grid[ngr][ngc].voronoi_id>=1)
+  {
+    if(!isEmpty(ngr,ngc) || world_grid[ngr][ngc].steps || world_grid[ngr][ngc].voronoi_id!=robot_tag_id)
     return true;
+  }
+  else
+  {
+    if(!isEmpty(ngr,ngc) || world_grid[ngr][ngc].steps)
+    return true;
+  }  
   return false;
 }
 
@@ -2152,6 +2160,7 @@ void PathPlannerGrid::BSACoverage(AprilInterfaceAndVideoCapture &testbed,robot_p
     world_grid[next_below.first][next_below.second].wall_reference = 1;//since turning 180 degrees
   }
 }
+
 void PathPlannerGrid::findCoverageLocalNeighborPreference(AprilInterfaceAndVideoCapture &testbed,robot_pose &ps){
   if(setRobotCellCoordinates(testbed.detections)<0)
     return;
@@ -2513,12 +2522,21 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
           }
       }
       //checking for unvisited boundary
+      unvisited_discovered_boundary=0;
       for(int i = 0; i< uv_boundary.size();i++){
        if(!uv_boundary[i].valid || world_grid[uv_boundary[i].next_p.first][uv_boundary[i].next_p.second].steps>0 ){//the bt is no longer uncovered or backtack conditions no longer remain
             uv_boundary[i].valid = false;//the point should no longer be considered in future
             continue;
           }
       }
+      for(int i = 0; i < uv_boundary.size(); i++)
+      {
+        if(uv_boundary[i].valid)
+        {
+          unvisited_discovered_boundary++;
+        }
+      }
+      cout<<"unvisited_discovered_boundary: "<<unvisited_discovered_boundary<<endl;
       if(!sk.empty()){
         pair<int,int> t = sk.top();
         world_grid[start_grid_x][start_grid_y].bot_presence = make_pair(1, robot_tag_id); //assigning bot presence bit to current cell, //this would come to use in collision avoidance algorithm
@@ -2549,6 +2567,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       current_behaviour = 0; //setting the behaviour for go-to-boundary
       addGridCellToPath(start_grid_x,start_grid_y,testbed);//add the current robot position as target point on first call, on subsequent calls the robot position would already be on the stack from the previous call assuming the function is called only when the robot has reached the next point
       //setting the preferred direction to go to the boundary;
+      unvisited_discovered_boundary = 0;
       int nx = start_grid_x-world_grid[start_grid_x][start_grid_y].parent.first+1;//add one to avoid negative index
       int ny = start_grid_y-world_grid[start_grid_x][start_grid_y].parent.second+1;
       int ngr, ngc;
@@ -2916,6 +2935,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
     cout<<"sk.empty(): "<<sk.empty()<<endl;
     //cv::waitKey(0);
     bool uv_boundary_backtrack = false;
+    bool normal_backtrack = false;
     while(!sk.empty() && current_behaviour == 1)
     {
       cout<<"Entering while\n"<<endl;
@@ -2937,6 +2957,72 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       if(boundary_lost==true)
       {
         cout<<"Boundary is lost!\n";
+        for(int i = 0; i < 4; i++)
+        {
+          ngr = t.first + aj[nx][ny][i].first;
+          ngc = t.second + aj[nx][ny][i].second;
+          if(!isBlocked(ngr,ngc) && world_grid[ngr][ngc].isBoundaryCell && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+          {
+            empty_neighbor_found = true;
+            if(ic_no==0)
+            {          
+                status = 0;
+                for(int j = 1; j < 3; j++)
+                    {
+                      int ngr2 = t.first+aj[nx][ny][j].first;//check the right and left points in consecutive iterations
+                      int ngc2 = t.second+aj[nx][ny][j].second;
+                      if(ngr2==ngr && ngc2 == ngc) continue;
+                      if(!isBlocked(ngr2, ngc2) && world_grid[ngr2][ngc2].voronoi_id==robot_tag_id)
+                      {
+                        if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
+                        {
+                          bt_destinations.push_back(bt(t.first,t.second,ngr2,ngc2,sk));
+                        }
+                      }
+                    }
+                int nx2 = ngr-t.first+1;//add one to avoid negative index
+                int ny2 = ngc-t.second+1;
+                for(int j = 1; j < 3; j++)//checking the backtrack point, as it's necessary to check it before adding point. this is because once the point is added the front cell is automatically treated as an obsatcle and the cell classifies as backtrack cell
+                {
+                  int ngr3 = t.first+aj[nx2][ny2][j].first;//check the right and left points in consecutive iterations
+                  int ngc3 = t.second+aj[nx2][ny2][j].second;
+                                   
+                  if(ngr3==ngr && ngc3 == ngc) continue;
+                  if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
+                    }
+                  }
+                }
+                addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
+                for(int j = 0; j < 4; j++)//incremental addition of backtracking points
+                {
+                  ngr = t.first+aj[nx][ny][j].first;
+                  ngc = t.second+aj[nx][ny][j].second;
+                  if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+                  {
+                    uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+                    cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                  }
+                }
+                for(int j = 0; j < 4; j++)//incremental addition of uv_boundary points;
+                {
+                  ngr = t.first+aj[nx][ny][j].first;
+                  ngc = t.second+aj[nx][ny][j].second;
+                  if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].isBoundaryCell && world_grid[ngr][ngc].voronoi_id == robot_tag_id)
+                  {
+                    uv_boundary.push_back(uv(t.first,t.second,ngr,ngc,sk));
+                    cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                  }
+                }                     
+              break;//for i
+            }//if ic_no
+          }//if 
+        }//for
+        if(empty_neighbor_found && ic_no == 0) break;
+        
         vector <int> iter_order = {2, 0, 1, 3};//left, front, right, back
         for(int i = 0; i < 4; i++)
         {
@@ -2959,13 +3045,42 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
           empty_neighbor_found = true;
           if(ic_no==0)
           {
-            status = 0;
-            /*for(int j = 1; j < 3; j++)
+            
+             if(world_grid[ngr][ngc].steps)
+                {
+                  if(world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                  {
+                    cout<<"1: Loop detected\n";
+                    if(unvisited_discovered_boundary) 
+                      {
+                        uv_boundary_backtrack = true;
+                      }
+                    else
+                    {
+                      normal_backtrack = true;
+                    }  
+                    uv_boundary_backtrack = true;
+                    break; //for
+                  }
+                  if(world_grid[ngr][ngc].isBoundaryCell)                 
+                  {
+                    if(unvisited_discovered_boundary==0) 
+                      {
+                        current_behaviour = 2;
+                        break;//for
+                      }  
+                    cout<<"2: Loop detected\n";
+                    normal_backtrack = true;
+                    break; //for
+                  }                  
+                }
+                status = 0;
+            for(int j = 1; j < 3; j++)
                 {
                   int ngr2 = t.first+aj[nx][ny][j].first;//check the right and left points in consecutive iterations
                   int ngc2 = t.second+aj[nx][ny][j].second;
                   if(ngr2==ngr && ngc2 == ngc) continue;
-                  if(!isBlocked(ngr2, ngc2))
+                  if(!isBlocked(ngr2, ngc2) && world_grid[ngr2][ngc2].voronoi_id==robot_tag_id)
                   {
                     if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
                     {
@@ -2981,30 +3096,43 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
                 int ngc3 = t.second+aj[nx2][ny2][j].second;
                                  
                 if(ngr3==ngr && ngc3 == ngc) continue;
-                if(!isBlocked(ngr3, ngc3))
+                if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id)
                 {
                   if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
                   {
                     bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
                   }
                 }
-              }*/
+              }
               addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
-              /*for(int j = i+1; j < 4; j++)//incremental addition of backtracking points
+              for(int j = 0; j < 4; j++)//incremental addition of backtracking points
               {
-                ngr = t.first+aj[nx][ny][iter_order[i]].first;
-                ngc = t.second+aj[ny][ny][iter_order[i]].second;
-                if(!isBlocked(ngr, ngc))
+                ngr = t.first+aj[nx][ny][iter_order[j]].first;
+                ngc = t.second+aj[nx][ny][iter_order[j]].second;
+                if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
                 {
                   uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
                   cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
                 }
-              } */                   
+              }
+              for(int j = 0; j < 4; j++)//incremental addition of uv_boundary points;
+              {
+                ngr = t.first+aj[nx][ny][iter_order[j]].first;
+                ngc = t.second+aj[nx][ny][iter_order[j]].second;
+                if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].isBoundaryCell && world_grid[ngr][ngc].voronoi_id == robot_tag_id)
+                {
+                  uv_boundary.push_back(uv(t.first,t.second,ngr,ngc,sk));
+                  cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                }
+              }                     
               break;//for i
           }//if ic_no
         }//for i
-      }//if boundary_lost = true
+      }//if boundary_lost = true      
       if(empty_neighbor_found && ic_no == 0) break;
+      if(current_behaviour!=1) break;
+      if(normal_backtrack) break;
+      if(uv_boundary_backtrack) break;
       if(boundary_lost==false)
       {
         cout<<"Boundary is not lost\n";
@@ -3027,47 +3155,28 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
         cout<<"left blocked: "<<left_blocked<<endl;
         cout<<"back blocked: "<<back_blocked<<endl;
 
-        //cv::waitKey(0);
-        // if(front_blocked && right_blocked && world_grid[ngr4][ngc4].steps==1 && !left_blocked && world_grid[ngr3][ngc3].isBoundaryCell && world_grid[ngr3][ngc3].steps!=1)
-        // {
-        //   cout<<"front_blocked && right_blocked && world_grid[ngr4][ngc4].steps && !left blocked\n";
-        //   std::vector<int> iter_order = {2, 3, 1, 0};//left, back, right, front
-        //   for(int i = 0; i < 4; i++)
-        //   {
-        //     ngr = t.first +aj[nx][ny][iter_order[i]].first;
-        //     ngc = t.second + aj[nx][ny][iter_order[i]].second;
-        //     if(isEmpty(ngr, ngc) && /*world_grid[ngr][ngc].isBoundaryCell && */world_grid[ngr][ngc].voronoi_id==robot_tag_id)
-        //     {
-               
-        //        if(ic_no == 0)
-        //        {
-        //         if(world_grid[ngr][ngc].steps && world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
-        //         {
-        //           cout<<"Loop detected\n";
-        //           uv_boundary_backtrack = true;
-        //           break; //for
-        //         }
-        //         empty_neighbor_found = true;
-        //         addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
-        //         for(int j = 0; j < 4; j++)//incremental addition of uv_boundary points;
-        //         {
-        //           ngr = t.first+aj[nx][ny][iter_order[j]].first;
-        //           ngc = t.second+aj[nx][ny][iter_order[j]].second;
-        //           if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].isBoundaryCell && world_grid[ngr][ngc].voronoi_id == robot_tag_id)
-        //           {
-        //             uv_boundary.push_back(uv(t.first,t.second,ngr,ngc,sk));
-        //             cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
-        //           }
-        //         }      
-        //         break;//for i;
-        //        }
-        //     }
-        //   }//for i
-        // }
+        //cv::waitKey(0);        
         if(front_blocked)
         {
-          cout<<"front is blocked\n";
-          std::vector<int> iter_order = {1, 3, 2, 0};//right, back, left, front
+          
+          std::vector<int> iter_order(4);//right, back, left, front
+          if(!isBlocked(ngr4, ngc4) && world_grid[ngr4][ngc4].voronoi_id==robot_tag_id)
+          {
+            cout<<"front is blocked and back is not visited\n";
+            iter_order[0] = 1;//right, back, left, front
+            iter_order[1] = 3;
+            iter_order[2] = 2;
+            iter_order[3] = 0;
+          }
+          else if(world_grid[ngr4][ngc4].steps!=0)
+          {
+            cout<<"front is blocked and back is visited\n";
+            iter_order[0] = 1;//right, left, back, front
+            iter_order[1] = 2;
+            iter_order[2] = 3;
+            iter_order[3] = 0;
+          }
+          
           for(int i = 0; i < 4; i++)
           {
             ngr = t.first +aj[nx][ny][iter_order[i]].first;
@@ -3077,14 +3186,67 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
                
                if(ic_no == 0)
                {
-                if(world_grid[ngr][ngc].steps && world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                if(world_grid[ngr][ngc].steps)
                 {
-                  cout<<"Loop detected\n";
-                  uv_boundary_backtrack = true;
-                  break; //for
-                }
+                  if(world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                  {
+                    cout<<"1Loop detected\n";
+                    uv_boundary_backtrack = true;
+                    break; //for
+                  }
+                  if(world_grid[ngr][ngc].isBoundaryCell)                 
+                  {
+                    if(unvisited_discovered_boundary==0) 
+                      {
+                        current_behaviour = 2;
+                        break;
+                      }  
+                    cout<<"2Loop detected\n";
+                    normal_backtrack = true;
+                    break; //for
+                  }                  
+                }                
                 empty_neighbor_found = true;
+                  for(int j = 1; j < 3; j++)
+                  {
+                    int ngr2 = t.first+aj[nx][ny][j].first;//check the right and left points in consecutive iterations
+                    int ngc2 = t.second+aj[nx][ny][j].second;
+                    if(ngr2==ngr && ngc2 == ngc) continue;
+                    if(!isBlocked(ngr2, ngc2) && world_grid[ngr2][ngc2].voronoi_id==robot_tag_id)
+                    {
+                      if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
+                      {
+                        bt_destinations.push_back(bt(t.first,t.second,ngr2,ngc2,sk));
+                      }
+                    }
+                  }
+                int nx2 = ngr-t.first+1;//add one to avoid negative index
+                int ny2 = ngc-t.second+1;
+                for(int j = 1; j < 3; j++)//checking the backtrack point, as it's necessary to check it before adding point. this is because once the point is added the front cell is automatically treated as an obsatcle and the cell classifies as backtrack cell
+                {
+                  int ngr3 = t.first+aj[nx2][ny2][j].first;//check the right and left points in consecutive iterations
+                  int ngc3 = t.second+aj[nx2][ny2][j].second;
+                                   
+                  if(ngr3==ngr && ngc3 == ngc) continue;
+                  if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
+                    }
+                  }
+                }
                 addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
+                for(int j = 0; j < 4; j++)//incremental addition of backtracking points
+                {
+                  ngr = t.first+aj[nx][ny][iter_order[j]].first;
+                  ngc = t.second+aj[nx][ny][iter_order[j]].second;
+                  if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+                  {
+                    uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+                    cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                  }
+                }    
                 for(int j = 0; j < 4; j++)//incremental addition of uv_boundary points;
                 {
                   ngr = t.first+aj[nx][ny][iter_order[j]].first;
@@ -3112,14 +3274,67 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
             {
                if(ic_no == 0)
                {
-                if(world_grid[ngr][ngc].steps && world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                if(world_grid[ngr][ngc].steps)
                 {
-                  cout<<"Loop detected\n";
-                  uv_boundary_backtrack = true;
-                  break;//for i
-                }
+                  if(world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                  {
+                    cout<<"1Loop detected\n";
+                    uv_boundary_backtrack = true;
+                    break; //for
+                  }
+                  if(world_grid[ngr][ngc].isBoundaryCell)                 
+                  {
+                    if(unvisited_discovered_boundary==0) 
+                      {
+                        current_behaviour = 2;
+                        break;
+                      }  
+                    cout<<"2Loop detected\n";
+                    normal_backtrack = true;
+                    break; //for
+                  }
+                }     
                 empty_neighbor_found = true;
+                for(int j = 1; j < 3; j++)
+                {
+                  int ngr2 = t.first+aj[nx][ny][j].first;//check the right and left points in consecutive iterations
+                  int ngc2 = t.second+aj[nx][ny][j].second;
+                  if(ngr2==ngr && ngc2 == ngc) continue;
+                  if(!isBlocked(ngr2, ngc2) && world_grid[ngr2][ngc2].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr2,ngc2,sk));
+                    }
+                  }
+                }
+                int nx2 = ngr-t.first+1;//add one to avoid negative index
+                int ny2 = ngc-t.second+1;
+                for(int j = 1; j < 3; j++)//checking the backtrack point, as it's necessary to check it before adding point. this is because once the point is added the front cell is automatically treated as an obsatcle and the cell classifies as backtrack cell
+                {
+                  int ngr3 = t.first+aj[nx2][ny2][j].first;//check the right and left points in consecutive iterations
+                  int ngc3 = t.second+aj[nx2][ny2][j].second;
+                                   
+                  if(ngr3==ngr && ngc3 == ngc) continue;
+                  if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
+                    }
+                  }
+                }
                 addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
+                for(int j = 0; j < 4; j++)//incremental addition of backtracking points
+                {
+                  ngr = t.first+aj[nx][ny][iter_order[j]].first;
+                  ngc = t.second+aj[nx][ny][iter_order[j]].second;
+                  if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+                  {
+                    uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+                    cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                  }
+                }   
                 for(int j = 0; j < 4; j++)//incremental addition of uv_boundary points;
                 {
                   ngr = t.first+aj[nx][ny][iter_order[j]].first;
@@ -3138,26 +3353,29 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
         else if(right_blocked && !left_blocked)
         {
           cout<<"right_blocked && !left_blocked\n";
+          cout<<"ngr4, ngc4: "<<ngr4<<" "<<ngc4;
           std::vector<int> iter_order(4);
-          if(ngr4>0 && ngc4>0 && ngr4 < rcells-1 && ngc4 <= ccells-1)
-          {
-            if(world_grid[ngr4][ngc4].steps!=1/*!back is visited*/) //back, left, front, rigt
+          /*if(ngr4>=0 && ngc4>=0 && ngr4 <= rcells-1 && ngc4 < ccells-1)
+          {*/
+            if(/*world_grid[ngr4][ngc4].steps!=1*/!isBlocked(ngr4, ngc4)/*!back is visited*/) //back, left, front, rigt
             {
+              cout<<"back is not visited\n";
               iter_order[0]=3;//back, left, front, rigt
               iter_order[1]=2;
               iter_order[2]=0;
               iter_order[3]=1;
             }
-            else if(world_grid[ngr4][ngc4].steps==1/*back is visited*/) //left, front, right, back
+            else //left, front, right, back
             {
               //program not entering here
+              cout<<"back is visited\n";
               iter_order[0]=2;//left, front, right, back
               iter_order[1]=0;
               iter_order[2]=1;
               iter_order[3]=3;             
             }
-          }   //if ngr4>0
-          
+          //}   //if ngr4>0
+          //cv::waitKey(0);
           for(int i = 0; i < 4; i++)
           {
             ngr = t.first +aj[nx][ny][iter_order[i]].first;
@@ -3166,14 +3384,67 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
             {               
                if(ic_no == 0)
                {
-                if(world_grid[ngr][ngc].steps && world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                if(world_grid[ngr][ngc].steps)
                 {
-                  cout<<"Loop detected\n";
-                  uv_boundary_backtrack = true;
-                  break;//for
-                }
+                  if(world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                  {
+                    cout<<"1Loop detected\n";
+                    uv_boundary_backtrack = true;
+                    break; //for
+                  }
+                  if(world_grid[ngr][ngc].isBoundaryCell)                 
+                  {
+                    if(unvisited_discovered_boundary==0) 
+                      {
+                        current_behaviour = 2;
+                        break;
+                      }  
+                    cout<<"2Loop detected\n";
+                    normal_backtrack = true;
+                    break; //for
+                  }
+                }     
                 empty_neighbor_found = true;
+                for(int j = 1; j < 3; j++)
+                {
+                  int ngr2 = t.first+aj[nx][ny][j].first;//check the right and left points in consecutive iterations
+                  int ngc2 = t.second+aj[nx][ny][j].second;
+                  if(ngr2==ngr && ngc2 == ngc) continue;
+                  if(!isBlocked(ngr2, ngc2) && world_grid[ngr2][ngc2].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr2,ngc2,sk));
+                    }
+                  }
+                }
+                int nx2 = ngr-t.first+1;//add one to avoid negative index
+                int ny2 = ngc-t.second+1;
+                for(int j = 1; j < 3; j++)//checking the backtrack point, as it's necessary to check it before adding point. this is because once the point is added the front cell is automatically treated as an obsatcle and the cell classifies as backtrack cell
+                {
+                  int ngr3 = t.first+aj[nx2][ny2][j].first;//check the right and left points in consecutive iterations
+                  int ngc3 = t.second+aj[nx2][ny2][j].second;
+                                   
+                  if(ngr3==ngr && ngc3 == ngc) continue;
+                  if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
+                    }
+                  }
+                }
                 addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
+                for(int j = 0; j < 4; j++)//incremental addition of backtracking points
+                {
+                  ngr = t.first+aj[nx][ny][iter_order[j]].first;
+                  ngc = t.second+aj[nx][ny][iter_order[j]].second;
+                  if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+                  {
+                    uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+                    cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                  }
+                }   
                 for(int j = 0; j < 4; j++)//incremental addition of uv_boundary points;
                 {
                   ngr = t.first+aj[nx][ny][iter_order[j]].first;
@@ -3193,16 +3464,15 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
         {
           cout<<"!right_blocked && left_blocked\n";
           std::vector<int> iter_order(4);
-          if(ngr1>0 && ngc1>0 && ngr1 < rcells-1 && ngc1 <= ccells-1)
-          {
-            if(!world_grid[ngr1][ngc1].steps/*!front is visited*/) 
+          
+            if(!isBlocked(ngr1, ngc1) /*!world_grid[ngr1][ngc1].steps*//*!front is visited*/) 
             {
               iter_order[0]=0;//front, right, back, left
               iter_order[1]=1;
               iter_order[2]=3;
               iter_order[3]=2;              
             }
-            else if(world_grid[ngr1][ngc1].steps/*front is visited*/) 
+            else if(isBlocked(ngr1,ngc1)/*world_grid[ngr1][ngc1].steps*//*front is visited*/) 
             {
               cout<<"bactrack to the closest boundary point unvisited\n";
               uv_boundary_backtrack = true;
@@ -3212,7 +3482,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
               iter_order[2]=2;
               iter_order[3]=0;  */     
             }
-          }//if ngr1>0          
+                 
         
         for(int i = 0; i < 4; i++)
           {
@@ -3222,14 +3492,68 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
             {
                if(ic_no == 0)
                {
-                if(world_grid[ngr][ngc].steps && world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                if(world_grid[ngr][ngc].steps)
                 {
-                  cout<<"Loop detected\n";
-                  uv_boundary_backtrack = true;
-                  break;//for
-                }
+                  if(world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                  {
+                    cout<<"1Loop detected\n";
+                    uv_boundary_backtrack = true;
+                    break; //for
+                  }
+                  if(world_grid[ngr][ngc].isBoundaryCell)                 
+                  {
+                    if(unvisited_discovered_boundary==0) 
+                      {
+                        current_behaviour = 2;
+                        break;
+                      }  
+                    cout<<"2Loop detected\n";
+                    normal_backtrack = true;
+                    break; //for
+                  }
+                }     
                 empty_neighbor_found = true;
+                for(int j = 1; j < 3; j++)
+                {
+                  int ngr2 = t.first+aj[nx][ny][j].first;//check the right and left points in consecutive iterations
+                  int ngc2 = t.second+aj[nx][ny][j].second;
+                  if(ngr2==ngr && ngc2 == ngc) continue;
+                  if(!isBlocked(ngr2, ngc2) && world_grid[ngr2][ngc2].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr2,ngc2,sk));
+                    }
+                  }
+                }
+                int nx2 = ngr-t.first+1;//add one to avoid negative index
+                int ny2 = ngc-t.second+1;
+                for(int j = 1; j < 3; j++)//checking the backtrack point, as it's necessary to check it before adding point. this is because once the point is added the front cell is automatically treated as an obsatcle and the cell classifies as backtrack cell
+                {
+                  int ngr3 = t.first+aj[nx2][ny2][j].first;//check the right and left points in consecutive iterations
+                  int ngc3 = t.second+aj[nx2][ny2][j].second;
+                                   
+                  if(ngr3==ngr && ngc3 == ngc) continue;
+                  if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
+                    }
+                  }
+                }
                 addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);
+                cout<<"added point!, checking for uev\n";
+                for(int j = 0; j < 4; j++)//incremental addition of backtracking points
+                { 
+                  ngr = t.first+aj[nx][ny][iter_order[j]].first;
+                  ngc = t.second+aj[nx][ny][iter_order[j]].second;
+                  if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].voronoi_id == robot_tag_id)
+                  {
+                    uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+                    cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                  }                 
+                }   
                 for(int j = 0; j < 4; j++)//incremental addition of uv_boundary points;
                 {
                   ngr = t.first+aj[nx][ny][iter_order[j]].first;
@@ -3248,7 +3572,20 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
         else if(right_blocked && left_blocked)
         {
           cout<<"Right and left both blocked\n"<<endl;
-          std::vector<int> iter_order = {0, 2, 3, 1};//front, left, back, right
+          std::vector<int> iter_order(4);//front, left, back, right
+          if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].isBoundaryCell && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id){
+            iter_order[0] = 2;
+            iter_order[1] = 0;
+            iter_order[2] = 3;
+            iter_order[3] = 1;
+          }
+          else
+          {
+            iter_order[0] = 0;
+            iter_order[1] = 2;
+            iter_order[2] = 3;
+            iter_order[3] = 1;
+          }
           for(int i = 0; i < 4; i++)
           {
             ngr = t.first +aj[nx][ny][iter_order[i]].first;
@@ -3257,14 +3594,67 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
             {
                if(ic_no == 0)
                {
-                if(world_grid[ngr][ngc].steps && world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                if(world_grid[ngr][ngc].steps)
                 {
-                  cout<<"Loop detected\n";
-                  uv_boundary_backtrack = true;
-                  break;//for
-                }
+                  if(world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                  {
+                    cout<<"1Loop detected\n";
+                    uv_boundary_backtrack = true;
+                    break; //for
+                  }
+                  if(world_grid[ngr][ngc].isBoundaryCell)                 
+                  {
+                    if(unvisited_discovered_boundary==0) 
+                      {
+                        current_behaviour = 2;
+                        break;
+                      }  
+                    cout<<"2Loop detected\n";
+                    normal_backtrack = true;
+                    break; //for
+                  }
+                }     
                 empty_neighbor_found = true;
-                addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);                             
+                for(int j = 1; j < 3; j++)
+                {
+                  int ngr2 = t.first+aj[nx][ny][j].first;//check the right and left points in consecutive iterations
+                  int ngc2 = t.second+aj[nx][ny][j].second;
+                  if(ngr2==ngr && ngc2 == ngc) continue;
+                  if(!isBlocked(ngr2, ngc2) && world_grid[ngr2][ngc2].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr2,ngc2,sk));
+                    }
+                  }
+                }
+                int nx2 = ngr-t.first+1;//add one to avoid negative index
+                int ny2 = ngc-t.second+1;
+                for(int j = 1; j < 3; j++)//checking the backtrack point, as it's necessary to check it before adding point. this is because once the point is added the front cell is automatically treated as an obsatcle and the cell classifies as backtrack cell
+                {
+                  int ngr3 = t.first+aj[nx2][ny2][j].first;//check the right and left points in consecutive iterations
+                  int ngc3 = t.second+aj[nx2][ny2][j].second;
+                                   
+                  if(ngr3==ngr && ngc3 == ngc) continue;
+                  if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
+                    }
+                  }
+                }
+                addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);  
+                for(int j = 0; j < 4; j++)//incremental addition of backtracking points
+                {
+                  ngr = t.first+aj[nx][ny][iter_order[j]].first;
+                  ngc = t.second+aj[nx][ny][iter_order[j]].second;
+                  if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+                  {
+                    uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+                    cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                  }
+                }                              
                for(int j = 0; j < 4; j++)//incremental addition of uv_boundary points;
                 {
                   ngr = t.first+aj[nx][ny][iter_order[j]].first;
@@ -3279,9 +3669,113 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
               }
             }
           }//for i
-        }  //else if  right_blocked && left_blocked       
+        }  //else if  right_blocked && left_blocked 
+        else
+        {
+          cout<<"Everything Else!";
+          std::vector<int> iter_order = {2, 0, 1, 3};//left, front, right, back
+          if(!isBlocked(ngr2, ngc2) && world_grid[ngr2][ngc2].isBoundaryCell && world_grid[ngr2][ngc2].voronoi_id==robot_tag_id){//is rught is boundary
+            iter_order[0] = 1;//right, front, left, back
+            iter_order[1] = 0;
+            iter_order[2] = 2;
+            iter_order[3] = 3;
+          }
+          else
+          {
+            iter_order[0] = 2;//left, front, right, back
+            iter_order[1] = 0;
+            iter_order[2] = 1;
+            iter_order[3] = 3;
+          }
+
+          for(int i = 0; i < 4; i++)
+          {
+            ngr = t.first +aj[nx][ny][iter_order[i]].first;
+            ngc = t.second + aj[nx][ny][iter_order[i]].second;
+            if(isEmpty(ngr, ngc) && /*world_grid[ngr][ngc].isBoundaryCell &&*/ world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+            {
+               if(ic_no == 0)
+               {
+                if(world_grid[ngr][ngc].steps)
+                {
+                  if(world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
+                  {
+                    cout<<"Loop detected\n";
+                    uv_boundary_backtrack = true;
+                    break; //for
+                  }
+                  if(world_grid[ngr][ngc].isBoundaryCell)                 
+                  {
+                    if(unvisited_discovered_boundary==0) 
+                      {
+                        current_behaviour = 2;
+                        break;
+                      }  
+                    cout<<"Loop detected\n";
+                    normal_backtrack = true;
+                    break; //for
+                  }
+                }     
+                empty_neighbor_found = true;
+                for(int j = 1; j < 3; j++)
+                {
+                  int ngr2 = t.first+aj[nx][ny][j].first;//check the right and left points in consecutive iterations
+                  int ngc2 = t.second+aj[nx][ny][j].second;
+                  if(ngr2==ngr && ngc2 == ngc) continue;
+                  if(!isBlocked(ngr2, ngc2) && world_grid[ngr2][ngc2].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr2,ngc2,sk));
+                    }
+                  }
+                }
+                int nx2 = ngr-t.first+1;//add one to avoid negative index
+                int ny2 = ngc-t.second+1;
+                for(int j = 1; j < 3; j++)//checking the backtrack point, as it's necessary to check it before adding point. this is because once the point is added the front cell is automatically treated as an obsatcle and the cell classifies as backtrack cell
+                {
+                  int ngr3 = t.first+aj[nx2][ny2][j].first;//check the right and left points in consecutive iterations
+                  int ngc3 = t.second+aj[nx2][ny2][j].second;
+                                   
+                  if(ngr3==ngr && ngc3 == ngc) continue;
+                  if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id)
+                  {
+                    if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
+                    {
+                      bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
+                    }
+                  }
+                }
+                addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,ngr,ngc,t,testbed);  
+                for(int j = 0; j < 4; j++)//incremental addition of backtracking points
+                {
+                  ngr = t.first+aj[nx][ny][iter_order[j]].first;
+                  ngc = t.second+aj[nx][ny][iter_order[j]].second;
+                  if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+                  {
+                    uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+                    cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                  }
+                }                              
+               for(int j = 0; j < 4; j++)//incremental addition of uv_boundary points;
+                {
+                  ngr = t.first+aj[nx][ny][iter_order[j]].first;
+                  ngc = t.second+aj[nx][ny][iter_order[j]].second;
+                  if(!isBlocked(ngr, ngc) && world_grid[ngr][ngc].isBoundaryCell && world_grid[ngr][ngc].voronoi_id == robot_tag_id)
+                  {
+                    uv_boundary.push_back(uv(t.first,t.second,ngr,ngc,sk));
+                    cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;            
+                  }
+                }
+                break;//for i    
+              }
+            }
+          }
+        }      
       }//if boundary_lost = false
+      if(current_behaviour!=1) break;
       if(uv_boundary_backtrack) break;
+      if(normal_backtrack) break;
       
       cout<<"empty_neighbor_found: "<<empty_neighbor_found<<endl;
       if(empty_neighbor_found && ic_no == 0) break;   
@@ -3291,17 +3785,158 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       ic_no++;
       sk.pop();
       //cout<<"popped the top of stack"<<endl;
-      if(sk.empty()) break;//no new spiral point was added, there might be some bt points available 
+      if(sk.empty()) break;//no new spiral point was added, there might be some uv points available 
       pair<int,int> next_below = sk.top();
       //the lines below are obsolete(at first thought) since the shortest path is being calculated, so wall reference and parent are obsolete on already visited points
       world_grid[next_below.first][next_below.second].parent = t;
       world_grid[next_below.first][next_below.second].wall_reference = 1;//since turning 180 degrees
     }//while
+    if(current_behaviour!=1) return;
     if(uv_boundary_backtrack == true)
     {
-      cout<<"backtrack to the closest unvisited uv if exist\n"; 
+       ic_no = 5;//any number greater than 0;
+      incumbent_cells[0].first = start_grid_x;
+      incumbent_cells[0].second = start_grid_y;
+      cout<<"backtrack to the closest unvisited uv if exist\n";
+      status = 1;
+      for(int i = 0;i<uv_boundary.size();i++){//updating the manhattan distance of each backtrack point from the current position, followed by sorting
+          //checking if backtrackpoint has been yet visited or not
+          if(!uv_boundary[i].valid || world_grid[uv_boundary[i].next_p.first][uv_boundary[i].next_p.second].steps>0 /*|| !checkBactrackValidityForBSA_CM(backtrack_parent)*/){//the uv is no longer uncovered or backtack conditions no longer remain
+            uv_boundary[i].valid = false;//the point should no longer be considered in future
+            continue;
+          }
+          //next 30 lines are to determine if there exist a parent for this uv_point, with smaller path (needed because just after this we are calculating the distance till the parents and sorting accordingly)
+          int best_parent_x, best_parent_y; 
+          int min_total_points = 10000000, min_total_points_index;
+          int flag = 0;
+          for(int k = 0; k < 4; k++)
+          {
+            best_parent_x = uv_boundary[i].next_p.first + aj[0][1][k].first;
+            best_parent_y = uv_boundary[i].next_p.second + aj[0][1][k].second;
+            if(isBlocked(best_parent_x, best_parent_y))
+            {
+              vector<vector<nd> > tp;//a temporary map
+              PathPlannerGrid temp_planner(tp);
+              temp_planner.gridInversion(*this, robot_tag_id);
+              temp_planner.start_grid_x = start_grid_x;//the current robot coordinates
+              temp_planner.start_grid_y = start_grid_y;
+              temp_planner.goal_grid_x = best_parent_x;
+              temp_planner.goal_grid_y = best_parent_y;
+              temp_planner.findshortest(testbed);
+              if(temp_planner.total_points< min_total_points && temp_planner.total_points >= 0)
+              {
+                min_total_points = temp_planner.total_points;
+                min_total_points_index = k;
+                flag = 1;
+              }
+            }
+          }
+          if(flag == 1)
+          {
+            uv_boundary[i].parent.first = uv_boundary[i].next_p.first + aj[0][1][min_total_points_index].first;
+            uv_boundary[i].parent.second = uv_boundary[i].next_p.second + aj[0][1][min_total_points_index].second;
+          }//best parent assigned
+
+          vector<vector<nd> > tp;//a temporary map
+          PathPlannerGrid temp_planner(tp);
+          temp_planner.gridInversion(*this, robot_tag_id);
+          temp_planner.start_grid_x = start_grid_x;//the current robot coordinates
+          temp_planner.start_grid_y = start_grid_y;
+          temp_planner.goal_grid_x = uv_boundary[i].parent.first;
+          temp_planner.goal_grid_y = uv_boundary[i].parent.second;
+          temp_planner.findshortest(testbed);
+          uv_boundary[i].manhattan_distance = temp_planner.total_points;//-1 if no path found
+        }//for i
+        sort(uv_boundary.begin(),uv_boundary.end(),[](const uv &a, const uv &b) -> bool{
+          return a.manhattan_distance<b.manhattan_distance;
+          });  
+      int l;
+      for(int l = 0; l < uv_boundary.size(); l++)
+      {
+        if(!uv_boundary[l].valid) continue;
+        addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,uv_boundary[l].next_p.first,uv_boundary[l].next_p.second,uv_boundary[l].parent,testbed);
+        return;
+      }
+      if(l==uv_boundary.size())
+      {
+        cout<<"No boundary points left to backtrack!\n";
+        current_behaviour = 2;
+      } 
       return;    
     }
+    if(normal_backtrack == true)
+    {
+      ic_no = 5;//any number greater than 0;
+      incumbent_cells[0].first = start_grid_x;
+      incumbent_cells[0].second = start_grid_y;
+      cout<<"backtrack to the closest unvisited bt if exist\n";
+      status = 1;
+      for(int i = 0;i<bt_destinations.size();i++){//updating the manhattan distance of each backtrack point from the current position, followed by sorting
+          //checking if backtrackpoint has been yet visited or not
+          if(!bt_destinations[i].valid || world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].steps>0 /*|| !checkBactrackValidityForBSA_CM(backtrack_parent)*/){//the bt is no longer uncovered or backtack conditions no longer remain
+            bt_destinations[i].valid = false;//the point should no longer be considered in future
+            continue;
+          }
+          //next 30 lines are to determine if there exist a parent for this bt_point, with smaller path (needed because just after this we are calculating the distance till the parents and sorting accordingly)
+          int best_parent_x, best_parent_y; 
+          int min_total_points = 10000000, min_total_points_index;
+          int flag = 0;
+          for(int k = 0; k < 4; k++)
+          {
+            best_parent_x = bt_destinations[i].next_p.first + aj[0][1][k].first;
+            best_parent_y = bt_destinations[i].next_p.second + aj[0][1][k].second;
+            if(isBlocked(best_parent_x, best_parent_y))
+            {
+              vector<vector<nd> > tp;//a temporary map
+              PathPlannerGrid temp_planner(tp);
+              temp_planner.gridInversion(*this, robot_tag_id);
+              temp_planner.start_grid_x = start_grid_x;//the current robot coordinates
+              temp_planner.start_grid_y = start_grid_y;
+              temp_planner.goal_grid_x = best_parent_x;
+              temp_planner.goal_grid_y = best_parent_y;
+              temp_planner.findshortest(testbed);
+              if(temp_planner.total_points< min_total_points && temp_planner.total_points >= 0)
+              {
+                min_total_points = temp_planner.total_points;
+                min_total_points_index = k;
+                flag = 1;
+              }
+            }
+          }
+          if(flag == 1)
+          {
+            bt_destinations[i].parent.first = bt_destinations[i].next_p.first + aj[0][1][min_total_points_index].first;
+            bt_destinations[i].parent.second = bt_destinations[i].next_p.second + aj[0][1][min_total_points_index].second;
+          }//best parent assigned
+
+          vector<vector<nd> > tp;//a temporary map
+          PathPlannerGrid temp_planner(tp);
+          temp_planner.gridInversion(*this, robot_tag_id);
+          temp_planner.start_grid_x = start_grid_x;//the current robot coordinates
+          temp_planner.start_grid_y = start_grid_y;
+          temp_planner.goal_grid_x = bt_destinations[i].parent.first;
+          temp_planner.goal_grid_y = bt_destinations[i].parent.second;
+          temp_planner.findshortest(testbed);
+          bt_destinations[i].manhattan_distance = temp_planner.total_points;//-1 if no path found
+        }//for i
+        sort(bt_destinations.begin(),bt_destinations.end(),[](const bt &a, const bt &b) -> bool{
+          return a.manhattan_distance<b.manhattan_distance;
+          });  
+      int l;
+      for(int l = 0; l < bt_destinations.size(); l++)
+      {
+        if(!bt_destinations[l].valid) continue;
+        addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,bt_destinations[l].next_p.first,bt_destinations[l].next_p.second,bt_destinations[l].parent,testbed);
+        return;
+      }
+      if(l==bt_destinations.size())
+      {
+        cout<<"No backtrack points left to backtrack!\n";
+        current_behaviour = 2;
+      } 
+      return;    
+    }
+
     cout<<"either the point is found or its blocked from all sides\n";
   }//if current behaviour == 1
 
