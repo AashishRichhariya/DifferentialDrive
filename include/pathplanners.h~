@@ -59,7 +59,7 @@ class PathPlannerGrid{
     int voronoi_wall;
     vector<uv> uv_boundary;//unvisited boundary cells in voronoi based algos
     int unvisited_discovered_boundary;//keeps the count of unvisited covered boundaries
-    std::vector<std::vector<nd> > patches;//stores all the patches and there points
+    std::vector<std::vector<pair<int, int>> > patches;//stores all the patches and there points
 
     
 
@@ -102,6 +102,8 @@ class PathPlannerGrid{
       uev_destinations = pt.uev_destinations;
       boundary_points = pt.boundary_points;
       uv_boundary = pt.uv_boundary;
+      robot_tag_id = pt.robot_tag_id;
+      total_voronoi_cells = pt.total_voronoi_cells;
       return *this;
     }
     double distance(double x1,double y1,double x2,double y2);
@@ -156,6 +158,7 @@ class PathPlannerGrid{
     void VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots);
 
     void discoverPatch(int patch_count, int r, int c);
+    void repartition(vector<PathPlannerGrid> &bots);
     
     
 };

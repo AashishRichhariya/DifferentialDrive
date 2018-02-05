@@ -2564,6 +2564,118 @@ void PathPlannerGrid::discoverPatch(int patch_count, int r, int c)
   //}
 }
 
+void PathPlannerGrid::repartition(vector<PathPlannerGrid> &bots)
+{
+  vector<PathPlannerGrid> bots_copy;
+  for(int i = 0; i < bots.size(); i++)
+  {
+    bots_copy.push_back(bots[i]);
+    //cout<<"i "<<i<<": robot_tag_id: "<<bots_copy[i].robot_tag_id<<" total_voronoi_cells:"<<bots_copy[i].total_voronoi_cells<<endl;
+  }
+  sort(bots_copy.begin(),bots_copy.end(),[](const PathPlannerGrid& a, const PathPlannerGrid& b) -> bool{
+          return a.total_voronoi_cells<b.total_voronoi_cells;
+          });
+  /*cout<<"After sorting:\n";
+  for(int i = 0; i < bots_copy.size(); i++)
+  {
+    cout<<i<<": robot_tag_id: "<<bots_copy[i].robot_tag_id<<" total_voronoi_cells:"<<bots_copy[i].total_voronoi_cells<<endl;
+  }*/
+
+  vector < vector< pair<int, int> > > adjacent_bots(bots.size());
+
+  for(int i = 0; i < patches.size(); i++)
+  {
+    cout<<"patches[i].size(): "<<patches[i].size();
+    for(int j = 0; j < patches[i].size(); j++)
+    {
+      if(!world_grid[patches[i][j].first][patches[i][j].second].isBoundaryCell)continue;
+      for(int k = 0; k < 4; k++)
+      {
+        int ngr = patches[i][j].first + aj[0][1][k].first;
+        int ngc = patches[i][j].second + aj[0][1][k].second;
+        if(ngr < 0 || ngc < 0 || ngr >= rcells || ngc >= ccells-1) continue;
+        if(world_grid[ngr][ngc].voronoi_id!=robot_tag_id)
+        {
+          adjacent_bots[world_grid[ngr][ngc].voronoi_id].push_back(patches[i][j]);
+        }
+      }//k
+    }//j
+    for(int j = 0; j < bots_copy.size(); j++)
+    {
+      if(bots_copy[j].total_voronoi_cells==0)continue;
+      if(adjacent_bots[bots_copy[j].robot_tag_id].size()==0)continue;
+      for(int k = 0; k < patches[i].size(); k++)
+      {
+        world_grid[patches[i][k].first][patches[i][k].second].voronoi_id = bots_copy[j].robot_tag_id;
+      }//k
+    }//j
+  }//i  
+  for(int r = 0; r < rcells; r++)
+  {
+    for(int c = 0; c < ccells-1; c++)
+    {
+      world_grid[r][c].isBoundaryCell = 0;
+    }
+  }
+
+  for(int r = 0; r < rcells; r++)//declaring boundary cells to the points which are in direct contact with the other boundary
+  {
+    for(int c = 0; c < ccells-1; c++)
+    {
+      if(world_grid[r][c].isBoundaryCell) continue;
+      for(int i = 0; i < 4; i++)
+      {
+        int ngr = r + aj[0][1][i].first;
+        int ngc = c + aj[0][1][i].second;
+        if(ngr < 0 || ngc < 0 || ngr > rcells-1 || ngc >=ccells -1)
+        {
+          world_grid[r][c].isBoundaryCell = 1;
+          //bots[world_grid[r][c].voronoi_id].boundary_points.push_back(bp(r, c));
+          break;
+        }
+        if(world_grid[r][c].voronoi_id != world_grid[ngr][ngc].voronoi_id)
+        {
+          world_grid[r][c].isBoundaryCell = 1;
+          world_grid[ngr][ngc].isBoundaryCell = 1;
+          //bots[world_grid[r][c].voronoi_id].boundary_points.push_back(bp(r, c));
+          //bots[world_grid[ngr][ngc].voronoi_id].boundary_points.push_back(bp(ngr, ngc));
+          break; 
+        }        
+      }
+    }
+  }
+  vector <pair<int, int>> corner(4);
+  corner[0].first = 1, corner[0].second = 1;
+  corner[1].first = -1, corner[1].second = -1;
+  corner[2].first = 1, corner[2].second = -1;
+  corner[3].first = -1, corner[3].second = 1;
+
+  for(int r = 0; r < rcells; r++)//declaring boundary cells, which are in contact to the other boundary through a corner
+  {
+    for(int c = 0; c < ccells-1; c++)
+    {
+      if(world_grid[r][c].isBoundaryCell) continue;
+      for(int i = 0; i < 4; i++)
+      {
+        int ngr = r + corner[i].first;
+        int ngc = c + corner[i].second;
+        if(ngr < 0 || ngc < 0 || ngr > rcells-1 || ngc >=ccells -1)
+        {
+          continue;
+        }
+        
+        if(world_grid[r][c].voronoi_id != world_grid[ngr][ngc].voronoi_id)
+        {
+          world_grid[r][c].isBoundaryCell = 1;
+          bots[world_grid[r][c].voronoi_id].boundary_points.push_back(bp(r, c));
+        }
+        
+      }
+    }
+  }
+
+}
+
 void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots){
   if(setRobotCellCoordinates(testbed.detections)<0)//set the start_grid_y, start_grid_x
     return;
@@ -2608,6 +2720,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       }
       cout<<"uv_boundary.size(): "<<uv_boundary.size()<<endl;
       cout<<"unvisited_discovered_boundary: "<<unvisited_discovered_boundary<<endl;
+      cout<<"total_voronoi_cells: "<<total_voronoi_cells<<endl;
       if(!sk.empty()){
         pair<int,int> t = sk.top();
         world_grid[start_grid_x][start_grid_y].bot_presence = make_pair(1, robot_tag_id); //assigning bot presence bit to current cell, //this would come to use in collision avoidance algorithm
@@ -3797,18 +3910,17 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
             iter_order[2] = 2;
             iter_order[3] = 3;
           }
-          else if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].isBoundaryCell && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id){//is left is boundary
-            
-            iter_order[0] = 2;//left, front, right, back
-            iter_order[1] = 0;
-            iter_order[2] = 1;
+          else if(!isBlocked(ngr1, ngc1) && world_grid[ngr1][ngc1].isBoundaryCell && world_grid[ngr1][ngc1].voronoi_id==robot_tag_id){//is left is boundary
+            iter_order[0] = 0;//front, right, left, back
+            iter_order[1] = 1;
+            iter_order[2] = 2;
             iter_order[3] = 3;
           }
           else
           {
-            iter_order[0] = 0;//front, right, left, back
-            iter_order[1] = 1;
-            iter_order[2] = 2;
+            iter_order[0] = 2;//left, front, right, back
+            iter_order[1] = 0;
+            iter_order[2] = 1;
             iter_order[3] = 3;
           }
 
@@ -4226,6 +4338,10 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
     {
       boundary_points.pop_back();
     }
+    for(int i = 0; i < bots.size(); i++)
+    {
+      bots[i].total_voronoi_cells = 0;
+    }
     for(int i = 0; i < rcells; i++)
     {
       for(int j = 0; j < ccells-1; j++)
@@ -4234,7 +4350,12 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
         {
           boundary_points.push_back(bp(i, j));
         }
+        bots[world_grid[i][j].voronoi_id].total_voronoi_cells++;
       }
+    }
+    for(int i = 0; i < bots.size(); i++)
+    {
+      cout<<"bots["<<i<<"].total_voronoi_cells: "<<bots[i].total_voronoi_cells<<endl;
     }
     cout<<"current_behaviour: "<<current_behaviour<<endl;
     vector <int> ngr(4);
@@ -4268,6 +4389,12 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       patch_count++;
       patches.resize(patch_count+1);
       discoverPatch(patch_count, boundary_points[i].cell.first, boundary_points[i].cell.second);
+      repartition(bots);
+      cout<<"After repartition\n";
+      for(int i = 0; i < bots.size(); i++)
+      {
+         cout<<i<<": robot_tag_id: "<<bots[i].robot_tag_id<<" total_voronoi_cells:"<<bots[i].total_voronoi_cells<<endl;
+      }  
     }
     current_behaviour = 3;
     //cv::waitKey(0);
