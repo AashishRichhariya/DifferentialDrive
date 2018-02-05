@@ -32,13 +32,14 @@ struct nd{
 
    int voronoi_id; //id of the bot to which the cell is alloted to in case of vornoi partition
    bool isBoundaryCell;
-  nd():tot(0),blacks(0),whites(0),tot_x(0),tot_y(0){
-    r_id = wall_reference = parent.first = parent.second = bot_presence.second = voronoi_id = -1;
+   int patch_num;//unvisited portion of one's path
+   nd():tot(0),blacks(0),whites(0),tot_x(0),tot_y(0){
+    r_id = wall_reference = parent.first = parent.second = bot_presence.second = voronoi_id = patch_num = -1;
     steps = bot_presence.first = isBoundaryCell = 0;
   }
   void emptyCell(){
     tot = blacks = whites = tot_x = tot_y = steps = bot_presence.first = isBoundaryCell = 0;
-    parent.first = parent.second = wall_reference = r_id = bot_presence.second = voronoi_id = -1;
+    parent.first = parent.second = wall_reference = r_id = bot_presence.second = voronoi_id = patch_num = -1;
   }
 };
 struct bt{

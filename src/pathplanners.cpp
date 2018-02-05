@@ -2302,6 +2302,18 @@ void PathPlannerGrid::drawPath(Mat &image){
       line(image,Point(ax-15, ay),Point(ax, ay-15),path_color,2);
     }
   }
+
+  for(i = 0; i < patches.size(); i++)
+  {
+    for(int j = 0; j < patches[i].size(); j++)
+    {
+      int ax,ay;
+      ax = world_grid[patches[i][j].first][patches[i][j].second].tot_x/world_grid[patches[i][j].first][patches[i][j].second].tot;
+      ay = world_grid[patches[i][j].first][patches[i][j].second].tot_y/world_grid[patches[i][j].first][patches[i][j].second].tot;
+      line(image,Point(ax-25, ay-25),Point(ax+25, ay+25),path_color,2); 
+      line(image,Point(ax-25, ay+25),Point(ax+25, ay-25),path_color,2);
+    }
+  }
 }
 
 //for the class PathPlannerUser
@@ -2464,15 +2476,15 @@ void PathPlannerGrid::defineVoronoiPartition(AprilInterfaceAndVideoCapture &test
         if(ngr < 0 || ngc < 0 || ngr > rcells-1 || ngc >=ccells -1)
         {
           world_grid[r][c].isBoundaryCell = 1;
-          bots[world_grid[r][c].voronoi_id].boundary_points.push_back(bp(r, c));
+          //bots[world_grid[r][c].voronoi_id].boundary_points.push_back(bp(r, c));
           break;
         }
         if(world_grid[r][c].voronoi_id != world_grid[ngr][ngc].voronoi_id)
         {
           world_grid[r][c].isBoundaryCell = 1;
           world_grid[ngr][ngc].isBoundaryCell = 1;
-          bots[world_grid[r][c].voronoi_id].boundary_points.push_back(bp(r, c));
-          bots[world_grid[ngr][ngc].voronoi_id].boundary_points.push_back(bp(ngr, ngc));
+          //bots[world_grid[r][c].voronoi_id].boundary_points.push_back(bp(r, c));
+          //bots[world_grid[ngr][ngc].voronoi_id].boundary_points.push_back(bp(ngr, ngc));
           break; 
         }        
       }
@@ -2508,6 +2520,49 @@ void PathPlannerGrid::defineVoronoiPartition(AprilInterfaceAndVideoCapture &test
     }
   }
 }//function
+
+void PathPlannerGrid::discoverPatch(int patch_count, int r, int c)
+{
+  if(world_grid[r][c].patch_num>=0) return;
+  if(world_grid[r][c].voronoi_id!=robot_tag_id) return;
+  if(world_grid[r][c].steps) return;
+  vector <int> ngr(4);
+  vector <int> ngc(4);
+  for(int i = 0; i < 4; i++)
+  {
+    ngr[i] = r + aj[0][1][i].first;
+    ngc[i] = c + aj[0][1][i].second;
+    if(ngr[i]<0 || ngc[i]< 0 || ngr[i] >= rcells || ngc[i] >= ccells-1)
+      continue;
+    if(world_grid[ngr[i]][ngc[i]].steps && world_grid[ngr[i]][ngc[i]].voronoi_id == robot_tag_id) 
+    {        
+      return;      
+    }
+  }
+    //if(!disc_flag)
+    //{
+      //this is not a discovered obstacle boundary, so it's part of the patch
+      cout<<"this is not a discovered obstacle boundary, so it's part of the patch\n"<<endl;
+      cout<<"r, c: "<<r<<" "<<c<<endl;
+      //cv::waitKey(0);      
+      world_grid[r][c].patch_num = patch_count;
+      patches[patch_count].push_back(make_pair(r, c));
+      for(int i = 0; i < 4; i++)
+      {
+        int r1 = r + aj[0][1][i].first;
+        int c1 = c + aj[0][1][i].second;
+        
+        if(r1>=0 && c1>=0 && r1<rcells && c1 < ccells -1)
+        {
+          if(world_grid[r1][c1].patch_num>=0) continue;
+          if(world_grid[r1][c1].voronoi_id!=robot_tag_id) continue;
+          if(world_grid[r1][c1].steps) continue;
+          discoverPatch(patch_count, r1, c1);
+        }
+      }
+    //}
+  //}
+}
 
 void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots){
   if(setRobotCellCoordinates(testbed.detections)<0)//set the start_grid_y, start_grid_x
@@ -2940,7 +2995,6 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       }
       //if the function reaches here it means that there is no valid bt_destination or uev_destination.
       cout<<"Some great error!"<<endl;
-
   }//if current_behaviour == 0
   int ngr, ngc, wall;
   //ic_no = 0;
@@ -3203,7 +3257,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
             iter_order[2] = 2;
             iter_order[3] = 0;
           }
-          else if(world_grid[ngr4][ngc4].steps!=0)
+          else 
           {
             cout<<"front is blocked and back is visited\n";
             iter_order[0] = 1;//right, left, back, front
@@ -3216,11 +3270,12 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
           {
             ngr = t.first +aj[nx][ny][iter_order[i]].first;
             ngc = t.second + aj[nx][ny][iter_order[i]].second;
+            cout<<"i, ngr, ngc: "<<i<<" "<<ngr<<" "<<ngc<<endl;
             if(isEmpty(ngr, ngc) && /*world_grid[ngr][ngc].isBoundaryCell && */world_grid[ngr][ngc].voronoi_id==robot_tag_id)
-            {
-               
+            {  cout<<"it's empty!\n";               
                if(ic_no == 0)
                {
+                cout<<"ic_no: "<<ic_no<<endl;
                 if(world_grid[ngr][ngc].steps)
                 {
                   if(world_grid[ngr][ngc].parent.first == t.first && world_grid[ngr][ngc].parent.second == t.second)
@@ -3243,6 +3298,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
                   }                  
                 }                
                 empty_neighbor_found = true;
+                cout<<"------\n"<<endl;
                   for(int j = 1; j < 3; j++)
                   {
                     int ngr2 = t.first+aj[nx][ny][j].first;//check the right and left points in consecutive iterations
@@ -3741,17 +3797,18 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
             iter_order[2] = 2;
             iter_order[3] = 3;
           }
-          else if(!isBlocked(ngr1, ngc1) && world_grid[ngr1][ngc1].isBoundaryCell && world_grid[ngr1][ngc1].voronoi_id==robot_tag_id){//is front is boundary
-            iter_order[0] = 0;//front, right, left, back
-            iter_order[1] = 1;
-            iter_order[2] = 2;
+          else if(!isBlocked(ngr3, ngc3) && world_grid[ngr3][ngc3].isBoundaryCell && world_grid[ngr3][ngc3].voronoi_id==robot_tag_id){//is left is boundary
+            
+            iter_order[0] = 2;//left, front, right, back
+            iter_order[1] = 0;
+            iter_order[2] = 1;
             iter_order[3] = 3;
           }
           else
           {
-            iter_order[0] = 2;//left, front, right, back
-            iter_order[1] = 0;
-            iter_order[2] = 1;
+            iter_order[0] = 0;//front, right, left, back
+            iter_order[1] = 1;
+            iter_order[2] = 2;
             iter_order[3] = 3;
           }
 
@@ -4162,7 +4219,62 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
     return;
   }//if current behaviour == 1
 
-  if(current_behaviour==2)
+
+  if(current_behaviour==2)//auctioning and repartition
+  {
+    while(boundary_points.size())
+    {
+      boundary_points.pop_back();
+    }
+    for(int i = 0; i < rcells; i++)
+    {
+      for(int j = 0; j < ccells-1; j++)
+      {
+        if(world_grid[i][j].isBoundaryCell && world_grid[i][j].voronoi_id==robot_tag_id)
+        {
+          boundary_points.push_back(bp(i, j));
+        }
+      }
+    }
+    cout<<"current_behaviour: "<<current_behaviour<<endl;
+    vector <int> ngr(4);
+    vector <int> ngc(4);
+    int patch_count = -1;    
+    cout<<"boundary_points: "<<boundary_points.size()<<endl;
+    //cv::waitKey(0);
+    for(int i = 0; i < boundary_points.size(); i++)
+    {
+      cout<<"i: "<<i<<endl;
+      if(world_grid[boundary_points[i].cell.first][boundary_points[i].cell.second].steps==1 || world_grid[boundary_points[i].cell.first][boundary_points[i].cell.second].patch_num>=0)continue;
+      bool disc_flag = 0;
+      for(int j = 0; j < 4; j++)
+      {
+        cout<<"j: "<<j<<endl;
+        ngr[j] = boundary_points[i].cell.first + aj[0][1][j].first;
+        ngc[j] = boundary_points[i].cell.second + aj[0][1][j].second;
+        cout<<"ngr, ngc: "<<ngr[j]<<" "<<ngc[j]<<endl;
+        if(ngr[j]<0 || ngc[j]<0 || ngr[j]>=rcells || (ngc[j] >= ccells -1)) continue; 
+        if(world_grid[ngr[j]][ngc[j]].steps && world_grid[ngr[j]][ngc[j]].voronoi_id == robot_tag_id)
+        {
+          disc_flag = 1;
+          break;
+        }
+      }
+      if(disc_flag) continue;
+      //reaching here means it's an undiscovered boundary cell, and part of a patch to be given to someone else
+      cout<<" //reaching here means it's an undiscovered boundary cell, and part of a patch to be given to someone else\n";
+      cout<<"current cell: "<<boundary_points[i].cell.first<<" "<<boundary_points[i].cell.second<<endl;
+      //cv::waitKey(0);
+      patch_count++;
+      patches.resize(patch_count+1);
+      discoverPatch(patch_count, boundary_points[i].cell.first, boundary_points[i].cell.second);
+    }
+    current_behaviour = 3;
+    //cv::waitKey(0);
+    return;    
+  }//if current_behaviour = 3
+
+  if(current_behaviour==3)
   {
     cout<<"current_behaviour: "<<current_behaviour<<endl;
     while(!sk.empty()){//when no other explorable path remains, the robot simply keeps updating the path vector with the same grid cell(path point)
@@ -4426,5 +4538,5 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       }
       //if the function reaches here it means that there is no valid bt_destination or uev_destination.
       cout<<"Some great error!"<<endl;
-  }//if current_behaviour ==2
+  }//if current_behaviour ==3
 }//function
