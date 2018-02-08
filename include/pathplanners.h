@@ -61,9 +61,12 @@ class PathPlannerGrid{
     int unvisited_discovered_boundary;//keeps the count of unvisited covered boundaries
     std::vector<std::vector<pair<int, int>> > patches;//stores all the patches and there points
 
+    bool first_inBoundary_call;
+    int start_boundary_x;
+    int start_boundary_y;
     
 
-    PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0), boundary_lost(0), voronoi_wall(2), unvisited_discovered_boundary(0){
+    PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0), boundary_lost(0), voronoi_wall(2), unvisited_discovered_boundary(0), first_inBoundary_call(1), start_boundary_x(-1), start_boundary_y(-1){
       initializeLocalPreferenceMatrix();
       initializeBactrackSearchMatrix();
       path_color = cv::Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
@@ -71,7 +74,7 @@ class PathPlannerGrid{
       status = 0;
       target_grid_cell = make_pair(-1, -1);		
     }
-    PathPlannerGrid(std::vector<std::vector<nd> > &wg):total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg),last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0), boundary_lost(0), voronoi_wall(2), unvisited_discovered_boundary(0){
+    PathPlannerGrid(std::vector<std::vector<nd> > &wg):total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg),last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0), boundary_lost(0), voronoi_wall(2), unvisited_discovered_boundary(0), first_inBoundary_call(1), start_boundary_x(-1), start_boundary_y(-1){
       initializeLocalPreferenceMatrix();
       initializeBactrackSearchMatrix();
       path_color = cv::Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
