@@ -3179,7 +3179,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       {
         int ngr = t.first + aj[nx][ny][iter_order[i]].first;
         int ngc = t.second + aj[nx][ny][iter_order[i]].second;
-        if(isEmpty(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+        if(isEmpty(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id && world_grid[ngr][ngc].patch_num==-1)
         {
           for(int j = 1; j < 3; j++)
           {
@@ -3232,7 +3232,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
     {
       int ngr = t.first + aj[nx][ny][iter_order[i]].first;
       int ngc = t.second + aj[nx][ny][iter_order[i]].second;
-      if(isEmpty(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id)
+      if(isEmpty(ngr, ngc) && world_grid[ngr][ngc].voronoi_id==robot_tag_id && world_grid[ngr][ngc].patch_num==-1)
         {
           if(ngr == start_boundary_x && ngc==start_boundary_y)//checking if next point is starting boundary point
           {
