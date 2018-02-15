@@ -59,7 +59,7 @@ class AprilInterfaceAndVideoCapture{
   std::vector<AprilTags::TagDetection> detections;
   //remember to add a class var to specify video device number, currently being assumed at 0 in setupvideo
   AprilInterfaceAndVideoCapture() :
-    // default settings, most can be modified through command line options (see below)
+    // default settings, most can be modified through command line opt. (see below)
     m_tagDetector(NULL),
     m_tagCodes(AprilTags::tagCodes36h11),
 
@@ -73,8 +73,12 @@ class AprilInterfaceAndVideoCapture{
     m_width(640),
     m_height(480),
     m_tagSize(13.5),
-    m_fx(6.4205269897923586e+02),//focal length in pixels
-    m_fy(6.4205269897923586e+02),
+	//for microsoft lifecam
+    //m_fx(6.4205269897923586e+02),//focal length in pixels
+    //m_fy(6.4205269897923586e+02),
+	//for logitech c390e
+    m_fx(5.0308682159996653e+02),
+    m_fy(5.0308682159996653e+02),
     m_px(m_width/2),
     m_py(m_height/2),
 

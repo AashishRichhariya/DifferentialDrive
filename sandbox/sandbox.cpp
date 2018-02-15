@@ -141,11 +141,11 @@ int main(int argc, char* argv[]) {
   int origin_tag_id = 0;//always 0
   //tag id should also not go beyond max_robots
   vector<vector<nd> > tp;//a map that would be shared among all
-  vector<bot_config> bots(max_robots,bot_config(60, 60,130,tp,40.0,2.3,14.5,75,75,128,false));
+  vector<bot_config> bots(max_robots,bot_config(45, 45,120,tp,40.0,2.3,14.5,75,75,128,false));
   vector<PathPlannerGrid> planners(max_robots,PathPlannerGrid(tp));
 
   int algo_select;
-  cout<<"\nWhat Algo do you want to compare?\n" 
+  cout<<"\nSelect the algorithm: \n" 
   "1: BSA-CM (Basic)\n" 
   "2: BSA-CM with updated Backtrack Search\n" 
   "3: Boustrophedon Motion With Updated Bactrack Search\n"
