@@ -37,7 +37,12 @@ int PurePursuitController::findNextPointByPursuit(robot_pose &rp,vector<pt> &pat
   return next_point;
 }
 
-int PurePursuitController::findNextPointByPathIndex(robot_pose &rp, vector<pt> &path){
+int PurePursuitController::findNextPointByPathIndex(robot_pose &rp, vector<pt> &path){  
+  if(path.size()>0)
+  {
+    cout<<"path[next_index].x, y: "<<path[next_index].x<<" "<<path[next_index].y<<endl;
+    cout<<"distance: "<<distance(rp.x,rp.y,path[next_index].x, path[next_index].y)<<endl;
+  }  
   if(next_index == path.size())
     return next_index;
   double dis = distance(rp.x,rp.y,path[next_index].x, path[next_index].y);
@@ -47,12 +52,14 @@ int PurePursuitController::findNextPointByPathIndex(robot_pose &rp, vector<pt> &
 }
 
 pair<int,int> PurePursuitController::computeStimuli(robot_pose &rp,vector<pt> &path, int &next_point_index_in_path){
+  cout<<"checking stimuli\n";
   int next_point;
   if(next_point_by_pursuit)
     next_point = findNextPointByPursuit(rp,path);
   else
     next_point = findNextPointByPathIndex(rp,path);
   next_point_index_in_path = next_point;
+  cout<<"next_point, path size(): "<<next_point<<" "<<path.size()<<endl;
   if(next_point == path.size())
     return make_pair(0,0);
   Vector2d vec_translate(path[next_point].x-rp.x, path[next_point].y-rp.y);

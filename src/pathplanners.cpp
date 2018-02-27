@@ -516,24 +516,14 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
     }
 
     if(!sk.empty()){
-      pair<int,int> t = sk.top();
-      cout<<"     \n\n";
-      cout<<"In for: "<<robot_tag_id<<endl;
-      cout<<"t: "<<t.first<<" "<<t.second<<endl;
-      cout<<"current grid: "<<start_grid_x<<" "<<start_grid_y<<endl;
+      pair<int,int> t = sk.top();     
       world_grid[start_grid_x][start_grid_y].bot_presence = make_pair(1, robot_tag_id); //assigning bot presence bit to current cell, //this would come to use in collision avoidance algorithm
-     
-      cout<<"last cells: "<<last_grid_x<<" "<<last_grid_y<<endl; 
-      cout<<"bot presnce for last cells: "<<world_grid[last_grid_x][last_grid_y].bot_presence.first<<" "<<world_grid[last_grid_x][last_grid_y].bot_presence.second<<endl;
       if(last_grid_x != start_grid_x || last_grid_y != start_grid_y)
       {
         world_grid[last_grid_x][last_grid_y].bot_presence = make_pair(0, -1);
         last_grid_x = start_grid_x;
         last_grid_y = start_grid_y;
-      }    
-      cout<<"bot presnce for current cells: "<<world_grid[start_grid_x][start_grid_y].bot_presence.first<<" "<<world_grid[start_grid_x][start_grid_y].bot_presence.second<<endl;
-      cout<<"     \n\n";
-
+      }     
       if(t.first != start_grid_x || t.second != start_grid_y || distance(ps.x,ps.y,path_points[total_points-1].x,path_points[total_points-1].y)>reach_distance){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
         cout<<"the robot has not yet reached the old target"<<t.first<<" "<<t.second<<endl;
         return;
@@ -583,17 +573,7 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
               if(!isBlocked(ngr, ngc))
               {
                 //checking for presence of bt point in the vector is redundant and can be avoided
-                int k;
-                for(k = 0;k<bt_destinations.size();k++)
-                {
-                    if(bt_destinations[k].next_p.first == ngr && bt_destinations[k].next_p.second == ngc && bt_destinations[k].parent.second == t.second && bt_destinations[k].parent.first == t.first)//the point was already added before
-                    {
-                      cout<<"**********************Alarm#1***********************************\n";
-                      cout<<"the backtrack point is: "<<ngr<<" "<<ngc<<endl;
-                      //cv::waitKey(0);
-                      break;
-                    }
-                }
+                int k;                
                 if(k == bt_destinations.size()){//this is new point
                 bt_destinations.push_back(bt(t.first,t.second,ngr,ngc,sk));
                 uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
@@ -631,16 +611,6 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
           {
             //checking for presence of bt point in the vector is redundant and can be avoided
             int k;
-            for(k = 0;k<bt_destinations.size();k++)
-            {
-                if(bt_destinations[k].next_p.first == ngr && bt_destinations[k].next_p.second == ngc && bt_destinations[k].parent.second == t.second && bt_destinations[k].parent.first == t.first)//the point was already added before
-                {
-                  cout<<"**********************Alarm#1***********************************\n";
-                  cout<<"the backtrack point is: "<<ngr<<" "<<ngc<<endl;
-                  //qitKey(0);
-                  break;
-                }
-            }
             if(k == bt_destinations.size()){//this is new point
             bt_destinations.push_back(bt(t.first,t.second,ngr,ngc,sk));
             uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
@@ -658,7 +628,6 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
           if(bt_destinations[i].next_p.first == ngr && bt_destinations[i].next_p.second == ngc && bt_destinations[i].parent.second == t.second && bt_destinations[i].parent.first == t.first)//the point was already added before
             break;
         if(i == bt_destinations.size()){//this is new point
-           cout<<"**********************Alarm#2***********************************\n";
           bt_destinations.push_back(bt(t.first,t.second,ngr,ngc,sk));
           uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
           cout<<"added a new backtrack point "<<ngr<<" "<<ngc<<endl;
@@ -735,9 +704,6 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
           bots[j].bt_destinations[i].parent.second = bots[j].bt_destinations[i].next_p.second + aj[0][1][min_total_points_index].second;
         }//best parent assigned
 
-      cout<<"j: "<<j<<endl;
-      cout<<"robot tag id: "<<bots[j].robot_tag_id<<endl;
-      cout<<"going for bt point "<<bots[j].bt_destinations[i].next_p.first<<" "<<bots[j].bt_destinations[i].next_p.second<<endl;
       vector<vector<nd> > tp;//a temporary map
       PathPlannerGrid temp_planner(tp);
       temp_planner.gridInversion(*this, bots[j].robot_tag_id);
@@ -795,15 +761,12 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
           min_j_index = j;
         }
       }
-      cout<<"selected it: "<<it<<endl;
-      cout<<"corresponding bt point: "<<bots[j].bt_destinations[it].next_p.first<<" "<<bots[j].bt_destinations[it].next_p.second<<endl;
 
     int i;
     for(i = 0;i<bots.size();i++){
       if(bots[i].robot_id == origin_id || bots[i].robot_id == robot_id)//the tag is actually the origin or current robot itself
         continue;
-      //all planners must share the same map
-      cout<<bots[i].robot_tag_id<<": Going for backtrack simulation bid!"<<endl;
+      //all planners must share the same map    
       int tp = bots[i].backtrackSimulateBid(bots[j].bt_destinations[it].next_p,testbed);// returns 10000000 if no path, checks if this particular backtrack point can be reached by other bot in lesser steps
       if(tp<bots[j].bt_destinations[it].manhattan_distance)//a closer bot is available
         {
@@ -2289,7 +2252,7 @@ void PathPlannerGrid::drawPath(Mat &image){
     }
   }
 
-  for(i = 0; i < uv_boundary.size(); i++)
+  /*for(i = 0; i < uv_boundary.size(); i++)
   {
     if(uv_boundary[i].valid)
     {
@@ -2301,9 +2264,9 @@ void PathPlannerGrid::drawPath(Mat &image){
       line(image,Point(ax, ay+15),Point(ax-15, ay),path_color,2);
       line(image,Point(ax-15, ay),Point(ax, ay-15),path_color,2);
     }
-  }
+  }*/
 
-  for(i = 0; i < patches.size(); i++)
+  /*for(i = 0; i < patches.size(); i++)
   {
     for(int j = 0; j < patches[i].size(); j++)
     {
@@ -2313,7 +2276,7 @@ void PathPlannerGrid::drawPath(Mat &image){
       line(image,Point(ax-25, ay-25),Point(ax+25, ay+25),path_color,2); 
       line(image,Point(ax-25, ay+25),Point(ax+25, ay-25),path_color,2);
     }
-  }
+  }*/
 }
 
 //for the class PathPlannerUser
@@ -2698,7 +2661,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
           }
       }
       //checking for unvisited boundary
-      unvisited_discovered_boundary=0;
+     /* unvisited_discovered_boundary=0;
       for(int i = 0; i< uv_boundary.size();i++){
        if(!uv_boundary[i].valid || world_grid[uv_boundary[i].next_p.first][uv_boundary[i].next_p.second].steps>0 || world_grid[uv_boundary[i].next_p.first][uv_boundary[i].next_p.second].voronoi_id!=robot_tag_id){//the bt is no longer uncovered or backtack conditions no longer remain
             uv_boundary[i].valid = false;//the point should no longer be considered in future
@@ -2720,7 +2683,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       }
       cout<<"uv_boundary.size(): "<<uv_boundary.size()<<endl;
       cout<<"unvisited_discovered_boundary: "<<unvisited_discovered_boundary<<endl;
-      cout<<"total_voronoi_cells: "<<total_voronoi_cells<<endl;
+      cout<<"total_voronoi_cells: "<<total_voronoi_cells<<endl;*/
       if(!sk.empty()){
         pair<int,int> t = sk.top();
         world_grid[start_grid_x][start_grid_y].bot_presence = make_pair(1, robot_tag_id); //assigning bot presence bit to current cell, //this would come to use in collision avoidance algorithm
@@ -2766,7 +2729,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
         }
       }
       unvisited_discovered_boundary=0;
-      for(int i = 0; i< uv_boundary.size();i++){
+      /*for(int i = 0; i< uv_boundary.size();i++){
        if(!uv_boundary[i].valid || world_grid[uv_boundary[i].next_p.first][uv_boundary[i].next_p.second].steps>0 || world_grid[uv_boundary[i].next_p.first][uv_boundary[i].next_p.second].voronoi_id!=robot_tag_id){//the bt is no longer uncovered or backtack conditions no longer remain
             uv_boundary[i].valid = false;//the point should no longer be considered in future
             continue;
@@ -2787,7 +2750,7 @@ void PathPlannerGrid::VoronoiPartitionBasedOnlineCoverage(AprilInterfaceAndVideo
       }
       cout<<"uv_boundary.size(): "<<uv_boundary.size()<<endl;
       cout<<"unvisited_discovered_boundary: "<<unvisited_discovered_boundary<<endl;
-      cout<<"total_voronoi_cells: "<<total_voronoi_cells<<endl;       
+      cout<<"total_voronoi_cells: "<<total_voronoi_cells<<endl;       */
     }//if !first call
 
   if(first_call){

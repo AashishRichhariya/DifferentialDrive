@@ -290,6 +290,7 @@ void AprilInterfaceAndVideoCapture::findRobotPose(int ind, robot_pose &rob){
   Eigen::Vector3d translation;
   Eigen::Matrix3d rotation;
   detections[ind].getRelativeTranslationRotation(m_tagSize, m_fx, m_fy, m_px, m_py,translation, rotation);
+  //cout<<"x, y, z: "<<translation(0)<<", "<<translation(1)<<", "<<translation(2)<<endl;
   Eigen::Vector3d ori(0,0,0);
   ori = (rotation*ori)+translation;//ori is now the robot centre
   ori = ori-planeOrigin;

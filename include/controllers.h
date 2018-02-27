@@ -2,6 +2,7 @@
 #define CONTROLLER_H
 #include <utility>
 #include <vector>
+#include <iostream>
 #include "structures.h"
 
 class PurePursuitController{

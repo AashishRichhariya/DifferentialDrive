@@ -2,11 +2,13 @@
 #include <unistd.h>
 #include "pathplanners.h"
 #include "controllers.h"
+#include <iostream>
 // For Arduino: serial port access class
 #include "Serial.h"
 using namespace std;
 using namespace cv;
 
+int reach_distance = 2.5;//cm
 struct bot_config{
   PathPlannerGrid plan;
   PurePursuitController control;//constructor called, thus must have a default constructor with no arguments
@@ -74,6 +76,7 @@ int check_deadlock(vector<bot_config> &bots, int index)
 
 void check_collision_possibility(AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &planners, vector<bot_config> &bots, pair<int,int> &wheel_velocities, int i)
 {
+  cout<<"Checking bot collision possible!\n";
   if(bots[i].plan.next_target_index != bots[i].plan.path_points.size()) //for collision avoidance
   {
     int c = (bots[i].plan.pixel_path_points[bots[i].plan.next_target_index].first)/(bots[i].plan.cell_size_x);
@@ -141,7 +144,7 @@ int main(int argc, char* argv[]) {
   int origin_tag_id = 0;//always 0
   //tag id should also not go beyond max_robots
   vector<vector<nd> > tp;//a map that would be shared among all
-  vector<bot_config> bots(max_robots,bot_config(45, 45,120,tp,40.0,2.3,14.5,75,75,128,false));
+  vector<bot_config> bots(max_robots,bot_config(42,42,115,tp,40.0,reach_distance,14.5,65,65,128,false));
   vector<PathPlannerGrid> planners(max_robots,PathPlannerGrid(tp));
 
   int algo_select;
@@ -154,28 +157,46 @@ int main(int argc, char* argv[]) {
   "\nEnter here: ";
   cin>>algo_select;
 
+ float fx  = 5.2131891565202363e+02;
+ float cx = 320;
+ float fy = 5.2131891565202363e+02;
+ float cy = 240; 
+ Mat cameraMatrix = (Mat1d(3, 3) << fx, 0., cx, 0., fy, cy, 0., 0., 1.);
+
+ float k1 = 1.2185003707738498e-01;
+ float k2 = -2.9284657749369847e-01;
+ float p1 = 0.;
+ float p2 = 0. ;
+ float k3 = 1.3015059691615408e-01;
+
+ Mat distortionCoefficients = (Mat1d(1, 5) << k1, k2, p1, p2, k3);
+ Mat image2;
+ //cv::namedWindow("Original",WINDOW_NORMAL);
   while (true){
     for(int i = 0;i<max_robots;i++){
       bots[i].init();
       bots[i].id = i;//0 is saved for origin
     }
     robotCount = 0;
-    testbed.m_cap >> image;
+    testbed.m_cap >> image2;
     //image = imread("tagimage.jpg");
+    undistort(image2, image, cameraMatrix, distortionCoefficients);
 
     testbed.processImage(image, image_gray);//tags extracted and stored in class variable
     int n = testbed.detections.size();
     for(int i = 0;i<bots.size();i++){
       bots[i].plan.robot_tag_id = i;
     }
-    for(int i = 0;i<n;i++){
+   
+    for(int i = 0;i<n;i++){     
       bots[testbed.detections[i].id].plan.robot_id = i; //robot_id is the index in detections the tag is detected at
       if(testbed.detections[i].id == origin_tag_id){//plane extracted
         bots[testbed.detections[i].id].plan.robot_id = i;
         testbed.extractPlane(i);
-        break;
+        //break;
       } 
     }
+
     if(bots[origin_tag_id].plan.robot_id<0)
       continue;//can't find the origin tag to extract plane
     for(int i = 0;i<n;i++){
@@ -189,6 +210,21 @@ int main(int argc, char* argv[]) {
       }
     }
 
+    /*cout<<"************\n";
+    for(int i = 0; i < n; i++)
+    {
+      if(testbed.detections[i].id > 4) continue;
+      cout<<testbed.detections[i].id<<" ";
+      testbed.findRobotPose(i,bots[testbed.detections[i].id].pose);
+      cout<<"pose: "<<bots[testbed.detections[i].id].plan.robot_tag_id<<" "<<bots[testbed.detections[i].id].pose.x<<" "<<bots[testbed.detections[i].id].pose.y<<" "<<bots[testbed.detections[i].id].pose.omega<<endl;
+
+      cout<<"detection id: "<<testbed.detections[i].id<<endl;
+      cout<<"robot_tag_id vs robot_id:    "<< bots[testbed.detections[i].id].plan.robot_tag_id<<" "<<bots[testbed.detections[i].id].plan.robot_id<<endl;
+      cout<<"pose: "<<bots[testbed.detections[i].id].plan.robot_tag_id<<" "<<bots[testbed.detections[i].id].pose.x<<" "<<bots[testbed.detections[i].id].pose.y<<" "<<bots[testbed.detections[i].id].pose.omega<<endl;
+      cout<<"func: "<<bots[testbed.detections[i].id].plan.robot_id<<" "<<x<<" "<<y<<endl;
+
+    }
+    cout<<"*********\n";*/
     //all robots must be detected(in frame) when overlay grid is called else some regions on which a robot is 
     //present(but not detected) would be considered an obstacle
     //no two robots must be present in the same grid cell(result is undefined)
@@ -222,37 +258,22 @@ int main(int argc, char* argv[]) {
       cout<<"planning for id "<<i<<endl;
       switch(algo_select)
       {
-      case 1: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners); break;
-      case 2: bots[i].plan.BSACoverageWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners); break;
-      case 3: bots[i].plan.BoustrophedonMotionWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners); break;
-      case 4: bots[i].plan.FAST(testbed,bots[i].pose, 2.5,planners); break;
-      case 5: bots[i].plan.VoronoiPartitionBasedOnlineCoverage(testbed,bots[i].pose, 2.5,planners); break;
-      default: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners);   
+      case 1: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, reach_distance,planners); break;
+      case 2: bots[i].plan.BSACoverageWithUpdatedBactrackSelection(testbed,bots[i].pose, reach_distance,planners); break;
+      case 3: bots[i].plan.BoustrophedonMotionWithUpdatedBactrackSelection(testbed,bots[i].pose, reach_distance,planners); break;
+      case 4: bots[i].plan.FAST(testbed,bots[i].pose, reach_distance,planners); break;
+      case 5: bots[i].plan.VoronoiPartitionBasedOnlineCoverage(testbed,bots[i].pose, reach_distance,planners); break;
+      default: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, reach_distance,planners);   
       }   
     }
 
-    //if(!path_planner.total_points){//no path algorithm ever run before, total_points become -1 if no path exists from pos to goal
-      //path_planner.robot_id = tag_id_index_map[robot_id];
-      //path_planner.goal_id = tag_id_index_map[goal_id];
-      //path_planner.origin_id = tag_id_index_map[origin_id];
-      //path_planner.overlayGrid(testbed.detections,image_gray);
-      //if(path_planner.origin_id>=0 && path_planner.robot_id>=0){
-        //path_planner.findCoverageGlobalNeighborPreference(testbed);
-        //path_planner.findCoverageLocalNeighborPreference(testbed,robots[pose_id_index_map[robot_id]]);
-        //path_planner.BSACoverage(testbed,robots[pose_id_index_map[robot_id]]);
-        //if(path_planner.goal_id>=0)
-          //path_planner.findshortest(testbed);
-      //}
-    //}
-    
 
     if(testbed.m_arduino){
       pair<int,int> wheel_velocities;
       for(int i = 1;i<bots.size();i++){//0 is for origin
-        //if (i==1)continue;
 
         int next_point_index_in_path=0; //for collision avoidance
-
+        cout<<i<<": robot pose: "<<bots[i].pose.x<<" "<<bots[i].pose.y<<" "<<bots[i].pose.omega<<endl;
         wheel_velocities = bots[i].control.computeStimuli(bots[i].pose,bots[i].plan.path_points, next_point_index_in_path);//for nonexistent robots, path_points vector would be empty thus preventing the controller to have any effect
           
           bots[i].plan.next_target_index = next_point_index_in_path;
@@ -270,8 +291,7 @@ int main(int argc, char* argv[]) {
           s_transmit.print((unsigned char)(128+wheel_velocities.second));
           cout<<"sent velocities "<<wheel_velocities.first<<" "<<wheel_velocities.second<<endl;
 
-          //strangely when I send multiple values to different robots in this loop, the robot always move straight irrespective of the value sent
-          //break;
+          
       }
     }
     if(testbed.m_draw){
@@ -287,12 +307,17 @@ int main(int argc, char* argv[]) {
       //add a only shortest path invocation drawing function in pathplanners
       //correct next point by index to consider reach radius to determine the next point
       imshow(windowName,image);
+      //imshow("Original", image2);
     }
     // print out the frame rate at which image frames are being processed
     frame++;
+
     if (frame % 10 == 0) {
       double t = tic();
+      //cout<<"image size: "<<image.cols<<"x"<<image.rows<<endl;
+      cout<<"************************\n";
       cout << "  " << 10./(t-last_t) << " fps" << endl;
+      cout<<"************************\n";
       last_t = t;
     }
     if (cv::waitKey(10) == 27){
