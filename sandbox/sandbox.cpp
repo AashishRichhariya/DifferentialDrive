@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
   int origin_tag_id = 0;//always 0
   //tag id should also not go beyond max_robots
   vector<vector<nd> > tp;//a map that would be shared among all
-  vector<bot_config> bots(max_robots,bot_config(42,42,115,tp,40.0,reach_distance,14.5,65,65,128,false));
+  vector<bot_config> bots(max_robots,bot_config(42,42,115,tp,40.0,reach_distance,14.5,75,75,128,false));
   vector<PathPlannerGrid> planners(max_robots,PathPlannerGrid(tp));
 
   int algo_select;
@@ -152,12 +152,12 @@ int main(int argc, char* argv[]) {
   "1: BSA-CM (Basic)\n" 
   "2: BSA-CM with updated Backtrack Search\n" 
   "3: Boustrophedon Motion With Updated Bactrack Search\n"
-  "4: FAST\n"
+  "4: Boustrophedon Motion With BSA_CM like Backtracking\n"
   "5: Voronoi Partition Based Online Coverage\n"
   "\nEnter here: ";
   cin>>algo_select;
 
- float fx  = 5.2131891565202363e+02;
+/* float fx  = 5.2131891565202363e+02;
  float cx = 320;
  float fy = 5.2131891565202363e+02;
  float cy = 240; 
@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
  float k3 = 1.3015059691615408e-01;
 
  Mat distortionCoefficients = (Mat1d(1, 5) << k1, k2, p1, p2, k3);
- Mat image2;
+ Mat image2;*/
  //cv::namedWindow("Original",WINDOW_NORMAL);
   while (true){
     for(int i = 0;i<max_robots;i++){
@@ -178,9 +178,9 @@ int main(int argc, char* argv[]) {
       bots[i].id = i;//0 is saved for origin
     }
     robotCount = 0;
-    testbed.m_cap >> image2;
+    testbed.m_cap >> image;
     //image = imread("tagimage.jpg");
-    undistort(image2, image, cameraMatrix, distortionCoefficients);
+    //undistort(image2, image, cameraMatrix, distortionCoefficients);
 
     testbed.processImage(image, image_gray);//tags extracted and stored in class variable
     int n = testbed.detections.size();
@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) {
       case 1: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, reach_distance,planners); break;
       case 2: bots[i].plan.BSACoverageWithUpdatedBactrackSelection(testbed,bots[i].pose, reach_distance,planners); break;
       case 3: bots[i].plan.BoustrophedonMotionWithUpdatedBactrackSelection(testbed,bots[i].pose, reach_distance,planners); break;
-      case 4: bots[i].plan.FAST(testbed,bots[i].pose, reach_distance,planners); break;
+      case 4: bots[i].plan.BoustrophedonMotionWithBSA_CMlikeBacktracking(testbed,bots[i].pose, reach_distance,planners); break;
       case 5: bots[i].plan.VoronoiPartitionBasedOnlineCoverage(testbed,bots[i].pose, reach_distance,planners); break;
       default: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, reach_distance,planners);   
       }   
