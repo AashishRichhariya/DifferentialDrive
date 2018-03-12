@@ -366,6 +366,14 @@ void PathPlannerGrid::findshortest(AprilInterfaceAndVideoCapture &testbed){
   }
 }
 
+bool PathPlannerGrid::checkReachStatus(pair <int, int> t, robot_pose &ps, double reach_distance)
+{
+  if(t.first != start_grid_x || t.second != start_grid_y || distance(ps.x,ps.y,path_points[total_points-1].x,path_points[total_points-1].y)>reach_distance){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
+      return 0;
+  }
+  return 1;
+}
+
 void PathPlannerGrid::addBacktrackPointToStackAndPath(stack<pair<int,int> > &sk,vector<pair<int,int> > &incumbent_cells,int &ic_no,int ngr, int ngc,pair<int,int> &t,AprilInterfaceAndVideoCapture &testbed){
   if(ic_no){
     world_grid[ngr][ngc].steps = 1;//just so that our target point is marked visited and there is no seg fault while searching goal in find shortest funciton.
@@ -523,8 +531,8 @@ void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &test
         world_grid[last_grid_x][last_grid_y].bot_presence = make_pair(0, -1);
         last_grid_x = start_grid_x;
         last_grid_y = start_grid_y;
-      }     
-      if(t.first != start_grid_x || t.second != start_grid_y || distance(ps.x,ps.y,path_points[total_points-1].x,path_points[total_points-1].y)>reach_distance){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
+      }    
+      if(!checkReachStatus(t, ps, reach_distance)){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
         cout<<"the robot has not yet reached the old target"<<t.first<<" "<<t.second<<endl;
         return;
       }
@@ -1053,7 +1061,7 @@ void PathPlannerGrid::BSACoverageWithUpdatedBactrackSelection(AprilInterfaceAndV
         last_grid_x = start_grid_x;
         last_grid_y = start_grid_y;
       }    
-    if(t.first != start_grid_x || t.second != start_grid_y || distance(ps.x,ps.y,path_points[total_points-1].x,path_points[total_points-1].y)>reach_distance){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
+    if(!checkReachStatus(t, ps, reach_distance)){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
         cout<<"the robot has not yet reached the old target"<<t.first<<" "<<t.second<<endl;
         return;
       }
@@ -1590,7 +1598,7 @@ void PathPlannerGrid::BoustrophedonMotionWithUpdatedBactrackSelection(AprilInter
           last_grid_x = start_grid_x;
           last_grid_y = start_grid_y;
         }    
-      if(t.first != start_grid_x || t.second != start_grid_y || distance(ps.x,ps.y,path_points[total_points-1].x,path_points[total_points-1].y)>reach_distance){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
+      if(!checkReachStatus(t, ps, reach_distance)){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
           cout<<"the robot has not yet reached the old target"<<t.first<<" "<<t.second<<endl;
           return;
         }
@@ -1838,7 +1846,7 @@ void PathPlannerGrid::BoustrophedonMotionWithUpdatedBactrackSelection(AprilInter
   addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,bots[bot_index].bt_destinations[it].next_p.first,bots[bot_index].bt_destinations[it].next_p.second,bots[bot_index].bt_destinations[it].parent,testbed);
 }//function
 
-void PathPlannerGrid::FAST(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots){
+void PathPlannerGrid::BoustrophedonMotionWithBSA_CMlikeBacktracking(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots){
   if(setRobotCellCoordinates(testbed.detections)<0)//set the start_grid_y, start_grid_x
   return;
     if(!first_call){
@@ -1866,7 +1874,7 @@ void PathPlannerGrid::FAST(AprilInterfaceAndVideoCapture &testbed, robot_pose &p
           last_grid_x = start_grid_x;
           last_grid_y = start_grid_y;
         }    
-      if(t.first != start_grid_x || t.second != start_grid_y || distance(ps.x,ps.y,path_points[total_points-1].x,path_points[total_points-1].y)>reach_distance){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
+      if(!checkReachStatus(t, ps, reach_distance)){//ensure the robot is continuing from the last point, and that no further planning occurs until the robot reaches the required point
           cout<<"the robot has not yet reached the old target"<<t.first<<" "<<t.second<<endl;
           return;
         }

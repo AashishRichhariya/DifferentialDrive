@@ -78,13 +78,11 @@ class AprilInterfaceAndVideoCapture{
     m_tagSize(12.8),
     //m_tagSize(13),
 	//for microsoft lifecam
-    //m_fx(6.4205269897923586e+02),//focal length in pixels
-    //m_fy(6.4205269897923586e+02),
+    m_fx(6.4205269897923586e+02),//focal length in pixels
+    m_fy(6.4205269897923586e+02),
 	//for logitech c390e
-    //m_fx(5.0308682159996653e+02),
-    //m_fy(5.0308682159996653e+02),
-    m_fx(5.2131891565202363e+02),
-    m_fy(5.2131891565202363e+02),
+    //m_fx(5.2131891565202363e+02),
+    //m_fy(5.2131891565202363e+02),
     m_px(m_width/2),
     m_py(m_height/2),
 

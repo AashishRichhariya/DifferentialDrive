@@ -152,7 +152,7 @@ class PathPlannerGrid{
 
     void BSA_CMSearchForBTAmongstUEV(AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &bots, vector<pair<int,int> > &incumbent_cells, int ic_no, stack<pair<int,int> > &sk);
 
-    void FAST(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots);
+    void BoustrophedonMotionWithBSA_CMlikeBacktracking(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots);
 
     void setPathColor();//to set the color of path
 
@@ -162,6 +162,8 @@ class PathPlannerGrid{
 
     void discoverPatch(int patch_count, int r, int c);
     void repartition(vector<PathPlannerGrid> &bots);
+
+    bool checkReachStatus(pair <int, int> t, robot_pose &ps, double reach_distance);
     
     
 };
