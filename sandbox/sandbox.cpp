@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
   int origin_tag_id = 0;//always 0
   //tag id should also not go beyond max_robots
   vector<vector<nd> > tp;//a map that would be shared among all
-  vector<bot_config> bots(max_robots,bot_config(42,42,115,tp,40.0,reach_distance,14.5,75,75,128,false));
+  vector<bot_config> bots(max_robots,bot_config(53,53,115,tp,40.0,reach_distance,14.5,75,75,128,false));
   vector<PathPlannerGrid> planners(max_robots,PathPlannerGrid(tp));
 
   int algo_select;
@@ -153,7 +153,7 @@ int main(int argc, char* argv[]) {
   "2: BSA-CM with updated Backtrack Search\n" 
   "3: Boustrophedon Motion With Updated Bactrack Search\n"
   "4: Boustrophedon Motion With BSA_CM like Backtracking\n"
-  "5: Voronoi Partition Based Online Coverage\n"
+  //"5: Voronoi Partition Based Online Coverage\n"
   "\nEnter here: ";
   cin>>algo_select;
 

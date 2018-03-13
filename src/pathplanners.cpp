@@ -2389,8 +2389,8 @@ void PathPlannerGrid::DeadlockReplan(AprilInterfaceAndVideoCapture &testbed, vec
     }
     else
     {
-      int r1 = pixel_path_points[total_points-2].first/cell_size_x;
-      int c1 = pixel_path_points[total_points-2].second/cell_size_y;
+      int c1 = pixel_path_points[total_points-2].first/cell_size_x;
+      int r1 = pixel_path_points[total_points-2].second/cell_size_y;
       addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,r1,c1,t,testbed); 
     }
   }
