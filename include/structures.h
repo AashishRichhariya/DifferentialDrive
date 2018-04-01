@@ -33,9 +33,23 @@ struct nd{
    int voronoi_id; //id of the bot to which the cell is alloted to in case of vornoi partition
    bool isBoundaryCell;
    int patch_num;//unvisited portion of one's path
+//following variables are required for MDFS
+   int visited;//required for MDFS
+   std::pair<int, int> tree_parent; //required for MDFS
+   int tree_id;//required for MDFS
+
+    //Ants
+    int visit_cost;//Required for ANTS
+
+    bool checked;//used when we just need to check a cell, for example while checking connectivity in Brick and Mortar
+    bool observed;//used to observe the eight neighboring cell
+
+    bool mark_visited; //required in BnM to mark a cell visited after it is out of it.
+   
+
    nd():tot(0),blacks(0),whites(0),tot_x(0),tot_y(0){
-    r_id = wall_reference = parent.first = parent.second = bot_presence.second = voronoi_id = patch_num = -1;
-    steps = bot_presence.first = isBoundaryCell = 0;
+    r_id = wall_reference = parent.first = parent.second = bot_presence.second = voronoi_id = patch_num = tree_id = -1;
+    steps = bot_presence.first = isBoundaryCell = visited = visit_cost = checked =  observed = mark_visited = 0;
   }
   void emptyCell(){
     tot = blacks = whites = tot_x = tot_y = steps = bot_presence.first = isBoundaryCell = 0;

@@ -150,10 +150,15 @@ int main(int argc, char* argv[]) {
   int algo_select;
   cout<<"\nSelect the algorithm: \n" 
   "1: BSA-CM (Basic)\n" 
-  "2: BSA-CM with updated Backtrack Search\n" 
+  "2: SSB\n" 
   "3: Boustrophedon Motion With Updated Bactrack Search\n"
-  "4: Boustrophedon Motion With BSA_CM like Backtracking\n"
-  //"5: Voronoi Partition Based Online Coverage\n"
+  "4: Boustrophedon Motion With BSA_CM like Backtracking\n" 
+  "5: BoB\n"
+  "6: MDFS\n"
+  "7: Brick And Mortar\n"
+  "8: S-MSTC\n"
+  "9: ANTS\n"
+  //"10: Voronoi Partition Based Online Coverage\n"
   "\nEnter here: ";
   cin>>algo_select;
 
@@ -248,7 +253,7 @@ int main(int argc, char* argv[]) {
     if(first_iter)
     {
     	first_iter = 0;
-    	if(algo_select==5)
+    	if(algo_select==10)
     	{
     		bots[0].plan.defineVoronoiPartition(testbed, planners);
     	}    	
@@ -258,11 +263,16 @@ int main(int argc, char* argv[]) {
       cout<<"planning for id "<<i<<endl;
       switch(algo_select)
       {
-      case 1: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, reach_distance,planners); break;
-      case 2: bots[i].plan.BSACoverageWithUpdatedBactrackSelection(testbed,bots[i].pose, reach_distance,planners); break;
-      case 3: bots[i].plan.BoustrophedonMotionWithUpdatedBactrackSelection(testbed,bots[i].pose, reach_distance,planners); break;
-      case 4: bots[i].plan.BoustrophedonMotionWithBSA_CMlikeBacktracking(testbed,bots[i].pose, reach_distance,planners); break;
-      case 5: bots[i].plan.VoronoiPartitionBasedOnlineCoverage(testbed,bots[i].pose, reach_distance,planners); break;
+      case 1: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, 2.5,planners); break;
+      case 2: bots[i].plan.SSB(testbed,bots[i].pose, 2.5,planners); break;
+      case 3: bots[i].plan.BoustrophedonMotionWithUpdatedBactrackSelection(testbed,bots[i].pose, 2.5,planners); break;
+      case 4: bots[i].plan.BoustrophedonMotionWithBSA_CMlikeBacktracking(testbed,bots[i].pose, 2.5,planners); break;    
+      case 5: bots[i].plan.BoB(testbed,bots[i].pose, 2.5,planners); break; 
+      case 6: bots[i].plan.MDFS(testbed,bots[i].pose, 2.5,planners); break;
+      case 7: bots[i].plan.BrickAndMortar(testbed,bots[i].pose, 2.5,planners); break; 
+      case 8: bots[i].plan.S_MSTC(testbed,bots[i].pose, 2.5,planners); break;
+      case 9: bots[i].plan.ANTS(testbed,bots[i].pose, 2.5,planners); break;
+      case 10: bots[i].plan.VoronoiPartitionBasedOnlineCoverage(testbed,bots[i].pose, reach_distance,planners); break;
       default: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, reach_distance,planners);   
       }   
     }
