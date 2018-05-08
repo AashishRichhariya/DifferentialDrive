@@ -29,6 +29,7 @@ struct bot_config{
 
 int check_deadlock(vector<bot_config> &bots, int index)
 {
+  int first_bot_index = index;
   cout<<"\nChecking deadlock presence:\n"<<endl;
   for(int i = 0; i < bots.size(); i++)
   {
@@ -42,9 +43,9 @@ int check_deadlock(vector<bot_config> &bots, int index)
     int r = bots[index].plan.target_grid_cell.first;
     int c = bots[index].plan.target_grid_cell.second;
     cout<<"r,c :"<<r<<" "<<c<<endl;
-    if(bots[index].plan.world_grid[r][c].bot_presence.first == 1 && bots[index].plan.world_grid[r][c].bot_presence.second != bots[index].plan.robot_tag_id)
+    if(bots[first_bot_index].plan.world_grid[r][c].bot_presence.first == 1 && bots[first_bot_index].plan.world_grid[r][c].bot_presence.second != bots[index].plan.robot_tag_id)
     {
-      target_cell_bot_id = bots[index].plan.world_grid[r][c].bot_presence.second;
+      target_cell_bot_id = bots[first_bot_index].plan.world_grid[r][c].bot_presence.second;
       bots[target_cell_bot_id].plan.deadlock_check_counter++;
       if(bots[target_cell_bot_id].plan.deadlock_check_counter > 1)
       {
@@ -104,6 +105,22 @@ void check_collision_possibility(AprilInterfaceAndVideoCapture &testbed, vector<
 
 
 int main(int argc, char* argv[]) {
+
+  //Create and initialize the VideoWriter object 
+  //comment out following three lines if you do not want to record the video of coverage
+  Size frame_size(640, 480);
+  int frames_per_second = 10;
+  VideoWriter oVideoWriter("/home/robot/Videos/SSB_Coverage_with_45_cm_comm_contstraint.avi", VideoWriter::fourcc('M', 'J', 'P','G'), frames_per_second, frame_size, true); //to record the video
+  
+if (oVideoWriter.isOpened() == false) 
+    {
+        cout << "Cannot save the video to a file" << endl;
+        cin.get(); //wait for any key press
+        return -1;
+    }
+
+
+
   AprilInterfaceAndVideoCapture testbed;
   testbed.parseOptions(argc, argv);
   testbed.setup();
@@ -117,7 +134,7 @@ int main(int argc, char* argv[]) {
   int frame = 0;
   int first_iter = 1;
   double last_t = tic();
-  const char *windowName = "What do you see?";
+  const char *windowName = "Arena";
   cv::namedWindow(windowName,WINDOW_NORMAL);
   /*vector<Serial> s_transmit(2);
   ostringstream sout;
@@ -142,10 +159,24 @@ int main(int argc, char* argv[]) {
   int robotCount;
   int max_robots = 5;
   int origin_tag_id = 0;//always 0
+
   //tag id should also not go beyond max_robots
-  vector<vector<nd> > tp;//a map that would be shared among all
+
+  //without communication constraints
+ /* vector<vector<nd> > tp;//a map that would be shared among all
   vector<bot_config> bots(max_robots,bot_config(53,53,115,tp,40.0,reach_distance,14.5,75,75,128,false));
-  vector<PathPlannerGrid> planners(max_robots,PathPlannerGrid(tp));
+  vector<PathPlannerGrid> planners(max_robots,PathPlannerGrid(tp));*/
+
+  //with communication constraints
+  vector <vector<vector<nd>>> tp(max_robots);
+  vector<bot_config> bots;
+  vector<PathPlannerGrid> planners;
+  for(int i = 0; i < max_robots; i++)
+  {
+    bots.push_back(bot_config(53,53,115,tp[i],40.0,reach_distance,14.5,65,65,128,false));
+    planners.push_back(PathPlannerGrid(tp[i]));
+  }
+
 
   int algo_select;
   cout<<"\nSelect the algorithm: \n" 
@@ -177,6 +208,13 @@ int main(int argc, char* argv[]) {
  Mat distortionCoefficients = (Mat1d(1, 5) << k1, k2, p1, p2, k3);
  Mat image2;*/
  //cv::namedWindow("Original",WINDOW_NORMAL);
+
+  //comment out the following 3 lines in case of no communication constraints use
+  double comm_dist;
+  cout<<"Enter the comm_dist (cm): ";
+  cin>>comm_dist;
+
+
   while (true){
     for(int i = 0;i<max_robots;i++){
       bots[i].init();
@@ -201,6 +239,9 @@ int main(int argc, char* argv[]) {
         //break;
       } 
     }
+
+
+
 
     if(bots[origin_tag_id].plan.robot_id<0)
       continue;//can't find the origin tag to extract plane
@@ -233,13 +274,25 @@ int main(int argc, char* argv[]) {
     //all robots must be detected(in frame) when overlay grid is called else some regions on which a robot is 
     //present(but not detected) would be considered an obstacle
     //no two robots must be present in the same grid cell(result is undefined)
-    if(first_iter){
+
+    //in case of no communication
+   /* if(first_iter){
       //first_iter = 0; 
       bots[0].plan.overlayGrid(testbed.detections,image_gray);//overlay grid completely reintialize the grid, we have to call it once at the beginning only when all robots first seen simultaneously(the surrounding is assumed to be static) not every iteration
       for(int i = 1;i<bots.size();i++){
         bots[i].plan.rcells = bots[0].plan.rcells;
         bots[i].plan.ccells = bots[0].plan.ccells;
       }
+    }*/
+
+    //in case of communication constraints
+    if(first_iter){
+      //first_iter = 0; 
+      for(int i = 0;i<bots.size();i++){
+        bots[i].plan.overlayGrid(testbed.detections,image_gray);//overlay grid completely reintialize the grid, we have to call it once at the beginning only when all robots first seen simultaneously(the surrounding is assumed to be static) not every iteration
+        bots[i].plan.comm_dist = comm_dist;//cm
+      }
+      
     }
 
     //the planners[i] should be redefined every iteration as the stack and bt points change 
@@ -247,7 +300,9 @@ int main(int argc, char* argv[]) {
     for(int i = 0;i<bots.size();i++){
       //for bot 0, the origin and robot index would be the same
       bots[i].plan.origin_id = bots[0].plan.robot_id;//set origin index of every path planner which is the index of tag 0 in detections vector given by RHS
+      if(i!=0) bots[i].plan.bot_pose = bots[i].pose;
       planners[i] = bots[i].plan;
+      planners[i].bot_pose = bots[i].plan.bot_pose;// only used in communication constraints, may seeem redundant but the program doesn;t work withoput it
     }
 
     if(first_iter)
@@ -257,6 +312,32 @@ int main(int argc, char* argv[]) {
     	{
     		bots[0].plan.defineVoronoiPartition(testbed, planners);
     	}    	
+    }
+ 
+    for(int i = 0; i < bots.size(); i++)
+    {
+      if(i==0) continue;
+      if(bots[i].plan.setRobotCellCoordinates(testbed.detections)<0) continue;
+      double ax = bots[i].plan.bot_pose.x;
+      double ay = bots[i].plan.bot_pose.y;
+      cout<<"ax, ay: "<<ax<<" "<<ay<<endl;
+      int pax = testbed.detections[bots[i].plan.robot_id].cxy.first;
+      int pay = testbed.detections[bots[i].plan.robot_id].cxy.second;
+      cout<<"pax, pay: "<<pax<<" "<<pay<<endl;
+      for(int j = 0; j < bots.size(); j++)
+      {
+        if(j==0) continue;
+        if(j==i) continue;
+        if(bots[j].plan.setRobotCellCoordinates(testbed.detections)<0) continue;
+        double bx = bots[j].plan.bot_pose.x;
+        double by = bots[j].plan.bot_pose.y;
+        cout<<"bx, by: "<<bx<<" "<<by<<endl;
+        int pbx = testbed.detections[bots[j].plan.robot_id].cxy.first;
+        int pby = testbed.detections[bots[j].plan.robot_id].cxy.second;
+        cout<<"pbx, pby: "<<pbx<<" "<<pby<<endl;
+        cout<<"i, j: "<<i<<" "<<j<<": "<<bots[i].plan.distance(ax, ay, bx, by)<<endl;
+        cout<<"pixel_distance: "<<sqrt((pow((pax-pbx),2)) + (pow((pay-pby),2)))<<endl;
+      }
     }
 
     for(int i = 1;i<bots.size();i++){
@@ -274,7 +355,9 @@ int main(int argc, char* argv[]) {
       case 9: bots[i].plan.ANTS(testbed,bots[i].pose, 2.5,planners); break;
       case 10: bots[i].plan.VoronoiPartitionBasedOnlineCoverage(testbed,bots[i].pose, reach_distance,planners); break;
       default: bots[i].plan.BSACoverageIncremental(testbed,bots[i].pose, reach_distance,planners);   
-      }   
+      }  
+      planners[i] = bots[i].plan; 
+      planners[i].world_grid = bots[i].plan.world_grid;  // only used in communication constraints, may seeem redundant but the program doesn;t work withoput it
     }
 
 
@@ -312,6 +395,7 @@ int main(int argc, char* argv[]) {
       for(int i = 1;i<bots.size();i++){
       	//bots[i].plan = planners[i];
         bots[i].plan.drawPath(image);
+        bots[i].plan.drawCommCircle(image, testbed, planners);
       }
       //add a next point circle draw for visualisation
       //add a only shortest path invocation drawing function in pathplanners
@@ -319,6 +403,7 @@ int main(int argc, char* argv[]) {
       imshow(windowName,image);
       //imshow("Original", image2);
     }
+    oVideoWriter.write(image); //to record coverage. Comment out if not wanted
     // print out the frame rate at which image frames are being processed
     frame++;
 
@@ -346,5 +431,6 @@ int main(int argc, char* argv[]) {
       break;//until escape is pressed
     }
   }
+   oVideoWriter.release();//used to record the video.
   return 0;
 }

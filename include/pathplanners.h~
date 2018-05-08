@@ -73,6 +73,13 @@ class PathPlannerGrid{
       //required in S-MSTC
     stack<pair<int,int> > second_sk;
 
+ double comm_dist; //communication distance in fts.
+
+
+robot_pose bot_pose; //to calculate distance between bots
+       
+     
+
 
     PathPlannerGrid(int csx,int csy,int th,std::vector<std::vector<nd> > &wg):cell_size_x(csx),cell_size_y(csy),threshold_value(th),total_points(0),start_grid_x(-1),start_grid_y(-1),goal_grid_x(-1),goal_grid_y(-1),robot_id(-1),goal_id(-1),origin_id(-1),robot_tag_id(-1),world_grid(wg), last_grid_x(-1), last_grid_y(-1), next_target_index(0), deadlock_check_counter(0), total_voronoi_cells(0), current_behaviour(0), preferred_x(0), preferred_y(0), boundary_lost(0), voronoi_wall(2), unvisited_discovered_boundary(0), first_inBoundary_call(1), start_boundary_x(-1), start_boundary_y(-1),  coverage_completed(0), start_cell_x(-1), start_cell_y(-1){
       initializeLocalPreferenceMatrix();
@@ -115,10 +122,11 @@ class PathPlannerGrid{
       uv_boundary = pt.uv_boundary;
       robot_tag_id = pt.robot_tag_id;
       total_voronoi_cells = pt.total_voronoi_cells;
+      bot_pose = pt.bot_pose; 	
       return *this;
     }
     double distance(double x1,double y1,double x2,double y2);
-    void shareMap(const PathPlannerGrid &planner);
+    void shareMap(AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &bots);
     void initializeLocalPreferenceMatrix();
     //invert visitable and non visitable cells
     void gridInversion(const PathPlannerGrid &planner,int rid);
@@ -152,7 +160,7 @@ class PathPlannerGrid{
     int checkBactrackCondition(pair<int, int> p1, pair <int, int> p2);
     bool checkBactrackValidityForBSA_CM(pair <int, int> t);
     bool bactrackValidityForBSA_CM(pair <int, int> t, int nx, int ny, int j);
- bool bactrackValidityForBoB(pair <int, int> t, int nx, int ny, int j);
+    bool bactrackValidityForBoB(pair <int, int> t, int nx, int ny, int j);
     void SSB(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots);
     void initializeBactrackSearchMatrix();//to initialize the matrix which help in backtrack search, namely blockedcellcheck
     void BoustrophedonMotionWithUpdatedBactrackSelection(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots);
@@ -185,6 +193,16 @@ class PathPlannerGrid{
     void BrickAndMortar(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots);   
 
     bool checkConnectivity(pair <int, int> start, pair <int, int> end);//required to checking blockage in Brick and Mortar;
+
+    pair <int, int> bidForBT(AprilInterfaceAndVideoCapture &testbed, pair <int, int> current_cell, vector<PathPlannerGrid> &bots);
+
+    pair <int, int> bidForUEV(AprilInterfaceAndVideoCapture &testbed, pair <int, int> current_cell, vector<PathPlannerGrid> &bots);
+
+    pair <int, int> nearestBT(AprilInterfaceAndVideoCapture &testbed, pair <int, int> current_cell, vector<PathPlannerGrid> &bots);
+
+     void drawCommCircle(cv::Mat &image, AprilInterfaceAndVideoCapture &testbed);
+   
+   
     
     
 };

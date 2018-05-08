@@ -75,10 +75,59 @@ void PathPlannerGrid::initializeBactrackSearchMatrix(){
 //all planners with same map must have same grid cell size in pixels
 //you should not call initialize, overlay, inversion grid on a shared map, or call if you 
 //know what you are doing
-void PathPlannerGrid::shareMap(const PathPlannerGrid &planner){
-    rcells = planner.rcells;
-    ccells = planner.ccells;
-    world_grid = planner.world_grid;
+void PathPlannerGrid::shareMap(AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &bots){
+  if(setRobotCellCoordinates(testbed.detections)<0)//set the start_grid_y, start_grid_x
+    return;
+  //double px = world_grid[start_grid_x][start_grid_y].tot_x/world_grid[start_grid_x][start_grid_y].tot;
+  //double py = world_grid[start_grid_x][start_grid_y].tot_y/world_grid[start_grid_x][start_grid_y].tot;
+  double ax = /*bots[robot_tag_id].*/bot_pose.x;
+  double ay = /*bots[robot_tag_id].*/bot_pose.y;
+  //cout<<"ax, ay: "<<ax<<" "<<ay<<endl;
+
+  //double ax, ay;
+  //testbed.pixelToWorld(px, py, ax, ay);
+  for(int i = 1; i < bots.size(); i++)
+  {  
+    if(bots[i].setRobotCellCoordinates(testbed.detections)<0) continue;
+    if(bots[i].robot_tag_id==robot_tag_id)continue;
+    //px = world_grid[bots[i].start_grid_x][bots[i].start_grid_y].tot_x/world_grid[bots[i].start_grid_x][bots[i].start_grid_y].tot;
+    //py = world_grid[bots[i].start_grid_x][bots[i].start_grid_y].tot_y/world_grid[bots[i].start_grid_x][bots[i].start_grid_y].tot;
+    //px = bots[i].start_grid_x;
+    //py = bots[i].start_grid_y;
+    ///double bx, by;
+    double bx = bots[i].bot_pose.x;
+    double by = bots[i].bot_pose.y;
+    //cout<<"bx, by: "<<bx<<" "<<by<<endl;
+    //testbed.pixelToWorld(px, py, bx, by);
+    cout<<"i, j: "<<robot_tag_id<<" "<<i<<": "<<distance(ax, ay, bx, by)<<endl;
+    if(distance(ax, ay, bx, by)>=comm_dist) continue;
+
+    for(int r = 0; r < rcells; r++)
+    {
+      for(int c = 0; c < ccells; c++)
+      {   
+        world_grid[r][c].bot_presence = make_pair(0, -1);
+        if(bots[i].world_grid[r][c].steps)
+        {
+          world_grid[r][c].steps = 1;
+        }
+        if(bots[i].world_grid[r][c].isBT)
+        {
+          world_grid[r][c].isBT = 1;
+        }
+        if(bots[i].world_grid[r][c].isUEV)
+        {
+          world_grid[r][c].isUEV = 1;
+        }
+        if(bots[i].world_grid[r][c].visited)
+        {
+          world_grid[r][c].visited = 1;
+        }    
+      }
+    }
+    world_grid[bots[i].start_grid_x][bots[i].start_grid_y].bot_presence = make_pair(1, i);
+  }
+  //world_grid[start_grid_x][start_grid_y].bot_presence = make_pair(1, robot_tag_id);
 }
 void PathPlannerGrid::gridInversion(const PathPlannerGrid &planner,int rid){//invert visitable and non visitable cells for the given rid
   rcells = planner.rcells;
@@ -98,6 +147,9 @@ void PathPlannerGrid::gridInversion(const PathPlannerGrid &planner,int rid){//in
         }
         else
           world_grid[i][j].steps = 1;
+        world_grid[i][j].tot_x = planner.world_grid[i][j].tot_x;
+          world_grid[i][j].tot_y = planner.world_grid[i][j].tot_y;
+          world_grid[i][j].tot = planner.world_grid[i][j].tot;
       }
       else //in case it's a vornoi partition based implementation
       {
@@ -109,6 +161,9 @@ void PathPlannerGrid::gridInversion(const PathPlannerGrid &planner,int rid){//in
         }
         else
           world_grid[i][j].steps = 1;
+          world_grid[i][j].tot_x = planner.world_grid[i][j].tot_x;
+          world_grid[i][j].tot_y = planner.world_grid[i][j].tot_y;
+          world_grid[i][j].tot = planner.world_grid[i][j].tot;
       }
     }
 }
@@ -417,6 +472,8 @@ int PathPlannerGrid::backtrackSimulateBid(pair<int,int> target,AprilInterfaceAnd
     return 10000000;//the bot is in either return mode.
   stack<pair<int,int> > skc = sk;
   vector<vector<nd> > world_gridc = world_grid;//copy current grid
+  world_gridc.resize(rcells);
+
   vector<vector<nd> > tp;//a temporary map
   PathPlannerGrid plannerc(tp);
   plannerc.rcells = rcells;
@@ -424,18 +481,16 @@ int PathPlannerGrid::backtrackSimulateBid(pair<int,int> target,AprilInterfaceAnd
   plannerc.world_grid = world_gridc;//world_gridc won't be copied since world_grid is a reference variable
   int nx,ny,ngr,ngc,wall;//neighbor row and column
   int step_distance = 0;
+  pair <int, int> p;
+  p = skc.top();
   while(true){
-    cout<<"\n\nCompleting the spiral\n"<<endl;
     pair<int,int> t = skc.top();
-    cout<<"current pt: "<<t.first<<" "<<t.second<<endl;
     nx = t.first-world_gridc[t.first][t.second].parent.first+1;//add one to avoid negative index
     ny = t.second-world_gridc[t.first][t.second].parent.second+1;
     if((wall=world_gridc[t.first][t.second].wall_reference)>=0){
-      cout<<"in wall thingy!\n";
       ngr = t.first+aj[nx][ny][wall].first, ngc = t.second+aj[nx][ny][wall].second;
       //if(!plannerc.isBlocked(ngr,ngc)){
        if(isEmpty(ngr,ngc)&&(!world_gridc[ngr][ngc].steps)){//don't know why but isBlocked is not working here in some cases
-        cout<<"Empty neighbor found!, they are: "<<ngr<<" "<<ngc<<endl;
         world_gridc[ngr][ngc].wall_reference = -1;
         world_gridc[ngr][ngc].steps = 1;
         world_gridc[ngr][ngc].parent = t;
@@ -448,17 +503,14 @@ int PathPlannerGrid::backtrackSimulateBid(pair<int,int> target,AprilInterfaceAnd
           continue;
       }
     }
-    cout<<"wall_reference thingy passed, now checking in neighbouring cells!\n";
     bool empty_neighbor_found = false;
     for(int i = 0;i<4;i++){
-      cout<<"i: "<<i<<endl;
       ngr = t.first+aj[nx][ny][i].first;
       ngc = t.second+aj[nx][ny][i].second;
       //if(plannerc.isBlocked(ngr,ngc))
       if(!isEmpty(ngr,ngc) || world_gridc[ngr][ngc].steps)//don't know why but isBlocked is not working here in some cases
         continue;
       empty_neighbor_found = true;
-      cout<<"Empty neighbor found!, they are: "<<ngr<<" "<<ngc<<endl;
       world_gridc[ngr][ngc].steps = 1;
       world_gridc[ngr][ngc].parent = t;
       world_gridc[ngr][ngc].r_id = robot_tag_id;
@@ -478,7 +530,6 @@ int PathPlannerGrid::backtrackSimulateBid(pair<int,int> target,AprilInterfaceAnd
     //ngr = target.first+aj[0][1][i].first;//aj[0][1] gives the global preference iteration of the neighbors
     //ngc = target.second+aj[0][1][i].second;
     //if(isEmpty(ngr,ngc) && world_gridc[ngr][ngc].steps/*r_id >0 *//*== robot_tag_id*/){//robot can get to given target via [ngr][ngc], /*no need to check steps as I'm checking the r_id which implies covered*/
-      cout<<"Spiral completed! Checking if its possible for the bot to reach target.\n";
       vector<vector<nd> > tp2;//a temporary map
       PathPlannerGrid temp_planner(tp2);
       temp_planner.gridInversion(plannerc, robot_tag_id);
@@ -495,14 +546,212 @@ int PathPlannerGrid::backtrackSimulateBid(pair<int,int> target,AprilInterfaceAnd
         return 10000000;//the robot can't return to given target
       }
       step_distance += temp_planner.total_points;
-      cout<<"The robot can reach in "<<step_distance<<" steps\n";
       return step_distance;//there might be a better way via some other adj cell, but difference would be atmost 1 unit cell
     //}
   //}
   //return 10000000;//the robot can't return to given target
 }
+
+
+pair <int, int> PathPlannerGrid::bidForBT(AprilInterfaceAndVideoCapture &testbed, pair <int, int> current_cell, vector<PathPlannerGrid> &bots){
+    queue<pair<int,int> > q;    
+    vector<pair<int,int> > aj = {{-1,0},{0,1},{1,0},{0,-1}};
+    int ngr, ngc;
+    pair<int,int> t;
+    int count = 0;
+    for(int r = 0; r < rcells; r++)
+    {
+      for(int c = 0; c < ccells; c++)
+      {
+        world_grid[r][c].checked = 0;
+        world_grid[r][c].manhattan_dist = 0;
+        if(world_grid[r][c].isBT && world_grid[r][c].steps!=1)
+        {
+          count++;
+        }
+      }
+    }    
+    if(count == 0)
+    {
+      cout<<"no BT left!\n";
+      return make_pair(-1, -1);
+    }
+    q.push(make_pair(current_cell.first,current_cell.second));
+    world_grid[current_cell.first][current_cell.second].checked = 1;
+    while(!q.empty()){
+      t = q.front();q.pop();
+      //cout<<"t: "<<t.first<<" "<<t.second<<endl;
+      //cout<<"isBT: "<<world_grid[t.first][t.second].isBT<<endl;
+      //cout<<"manhattan_distance: "<<world_grid[t.first][t.second].manhattan_dist<<endl;
+      //cv::waitKey(0);
+      bool bid_won = 1;
+      if(world_grid[t.first][t.second].steps==0 && world_grid[t.first][t.second].isBT==1)
+      {
+        //cout<<"it is BT!\n";
+        //cout<<"t: "<<t.first<<" "<<t.second<<endl;
+        for(int i = 0;i<bots.size();i++){
+        if(bots[i].robot_id == origin_id || bots[i].robot_id == robot_id)//the tag is actually the origin or current robot itself
+          continue;
+        //cout<<"robot id: "<<bots[i].robot_id<<endl;
+        //cout<<"i: "<<i<<endl;
+        int tp = bots[i].backtrackSimulateBid(t,testbed);// returns 10000000 if no path, checks if this particular backtrack point can be reached by other bot in lesser steps
+        //cout<<"tp: "<<tp<<endl;
+        if(tp<world_grid[t.first][t.second].manhattan_dist)//a closer bot is available
+          {
+            cout<<"some other bot can reach earlier!\n";
+            bid_won = 0;
+            break;
+          }
+        } 
+        
+        if(bid_won)
+        {
+          cout<<"bid_won: "<<bid_won<<endl;
+          //cv::waitKey(0);   
+          return t;
+        }     
+        //cv::waitKey(0);   
+
+      }      
+      for(int i = 0;i<4;i++){
+        ngr = t.first+aj[i].first, ngc = t.second+aj[i].second;
+        if(!isEmpty(ngr, ngc) || world_grid[ngr][ngc].checked==1|| (world_grid[ngr][ngc].steps!=1 && world_grid[ngr][ngc].isBT==0))
+          continue;
+        world_grid[ngr][ngc].checked = 1;
+        world_grid[ngr][ngc].manhattan_dist = world_grid[t.first][t.second].manhattan_dist + 1;
+        //cout<<"ngr, ngc: "<<ngr<<" "<<ngc<<endl;
+        //cout<<"manhattan_distance: "<<world_grid[ngr][ngc].manhattan_dist<<endl;
+        //cv::waitKey(0);
+        q.push(make_pair(ngr,ngc));
+      }
+    }
+    return make_pair(-1, -1);   
+}
+
+pair <int, int> PathPlannerGrid::nearestBT(AprilInterfaceAndVideoCapture &testbed, pair <int, int> current_cell, vector<PathPlannerGrid> &bots){
+    queue<pair<int,int> > q;    
+    vector<pair<int,int> > aj = {{-1,0},{0,1},{1,0},{0,-1}};
+    int ngr, ngc;
+    pair<int,int> t;
+    int count = 0;
+    for(int r = 0; r < rcells; r++)
+    {
+      for(int c = 0; c < ccells; c++)
+      {
+        world_grid[r][c].checked = 0;
+        world_grid[r][c].manhattan_dist = 0;
+        if(world_grid[r][c].isBT && world_grid[r][c].steps!=1)
+        {
+          count++;
+        }
+      }
+    }    
+    if(count == 0)
+    {
+      cout<<"no BT left!\n";
+      return make_pair(-1, -1);
+    }
+    q.push(make_pair(current_cell.first,current_cell.second));
+    world_grid[current_cell.first][current_cell.second].checked = 1;
+    while(!q.empty()){
+      t = q.front();q.pop();           
+      if(world_grid[t.first][t.second].steps==0 && world_grid[t.first][t.second].isBT==1){     
+       return t;
+      }     
+      for(int i = 0;i<4;i++){
+        ngr = t.first+aj[i].first, ngc = t.second+aj[i].second;
+        if(!isEmpty(ngr, ngc) || world_grid[ngr][ngc].checked==1 || (world_grid[ngr][ngc].steps!=1 && world_grid[ngr][ngc].isBT==0))
+          continue;
+        world_grid[ngr][ngc].checked = 1;
+        world_grid[ngr][ngc].manhattan_dist = world_grid[t.first][t.second].manhattan_dist + 1;      
+        q.push(make_pair(ngr,ngc));
+      }
+    }
+    return make_pair(-1, -1);   
+}
+
+pair <int, int> PathPlannerGrid::bidForUEV(AprilInterfaceAndVideoCapture &testbed, pair <int, int> current_cell, vector<PathPlannerGrid> &bots){
+    queue<pair<int,int> > q;    
+    vector<pair<int,int> > aj = {{-1,0},{0,1},{1,0},{0,-1}};
+    int ngr, ngc;
+    pair<int,int> t;
+    int count = 0;
+    for(int r = 0; r < rcells; r++)
+    {
+      for(int c = 0; c < ccells; c++)
+      {
+        world_grid[r][c].checked = 0;
+        world_grid[r][c].manhattan_dist = 0;
+        if(world_grid[r][c].isUEV && world_grid[r][c].steps!=1)
+        {
+          count++;
+        }
+      }
+    }       
+    if(count == 0)
+    {
+      cout<<"no UEV left!\n";
+      return make_pair(-1, -1);
+    }
+    
+    pair <int, int> first_uev;
+    bool found_first = 0;
+    q.push(make_pair(current_cell.first,current_cell.second));
+    world_grid[current_cell.first][current_cell.second].checked = 1;
+    while(!q.empty()){
+      t = q.front();q.pop();
+      
+      //cv::waitKey(0);
+      bool bid_won = 1;
+      if(world_grid[t.first][t.second].steps==0 && world_grid[t.first][t.second].isUEV==1)
+      {
+        if(!found_first)
+        {
+          found_first = 1;
+          first_uev = t;
+        }        
+        for(int i = 0;i<bots.size();i++){
+        if(bots[i].robot_id == origin_id || bots[i].robot_id == robot_id)//the tag is actually the origin or current robot itself
+          continue;       
+        int tp = bots[i].backtrackSimulateBid(t,testbed);// returns 10000000 if no path, checks if this particular backtrack point can be reached by other bot in lesser steps
+        if(tp<world_grid[t.first][t.second].manhattan_dist)//a closer bot is available
+          {
+            cout<<"some other bot can reach earlier!\n";
+            bid_won = 0;
+            break;
+          }
+        }        
+        
+        if(bid_won)
+        {
+          cout<<"bid_won: "<<bid_won<<endl;         
+          return t;
+        }
+      }      
+      for(int i = 0;i<4;i++){
+        ngr = t.first+aj[i].first, ngc = t.second+aj[i].second;
+        if(!isEmpty(ngr, ngc) || world_grid[ngr][ngc].checked==1|| (world_grid[ngr][ngc].steps!=1 && world_grid[ngr][ngc].isUEV==0))
+          continue;
+        world_grid[ngr][ngc].checked = 1;
+        world_grid[ngr][ngc].manhattan_dist = world_grid[t.first][t.second].manhattan_dist + 1;       
+        //cv::waitKey(0);
+        q.push(make_pair(ngr,ngc));
+      }
+    }
+    if(found_first)
+    {
+      cout<<"returning first found!\n";     
+      return first_uev;
+    }
+    else
+    {
+      cout<<"Coverage Completed\n";     
+      return make_pair(-1, -1);
+    }        
+}
+
 //each function call adds only the next spiral point in the path vector, which may occur after a return phase
-void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots){
+void PathPlannerGrid::BSACoverageIncremental(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps, double reach_distance, vector<PathPlannerGrid> &bots/*this should not be confused with bots in the main file which is an object of bot_config structure*/){
   if(setRobotCellCoordinates(testbed.detections)<0)//set the start_grid_y, start_grid_x
     return;
 
@@ -1047,6 +1296,8 @@ void PathPlannerGrid::SSB(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps
 
   if(!first_call){
 
+    shareMap(testbed, bots);//only in case of communication constraints
+
     for(int i = 0; i< bt_destinations.size();i++){
       if(!bt_destinations[i].valid || world_grid[bt_destinations[i].next_p.first][bt_destinations[i].next_p.second].steps>0 /*|| !checkBactrackValidityForBSA_CM(backtrack_parent)*/){//the bt is no longer uncovered or backtack conditions no longer remain
             bt_destinations[i].valid = false;//the point should no longer be considered in future
@@ -1122,6 +1373,7 @@ void PathPlannerGrid::SSB(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps
                 if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
                 {
                   bt_destinations.push_back(bt(t.first,t.second,ngr2,ngc2,sk));
+                   world_grid[ngr2][ngc2].isBT = 1;   
                 }
               }
             }
@@ -1138,6 +1390,7 @@ void PathPlannerGrid::SSB(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps
                 if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
                 {
                   bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
+                   world_grid[ngr3][ngc3].isBT = 1;
                 }
               }
             }
@@ -1152,6 +1405,7 @@ void PathPlannerGrid::SSB(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps
                 if(!isBlocked(ngr, ngc))
                 {                  
                   uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+                  world_grid[ngr][ngc].isUEV = 1; 
                   cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;                  
                 }
               }              
@@ -1182,6 +1436,7 @@ void PathPlannerGrid::SSB(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps
             if(bactrackValidityForBSA_CM(t, nx, ny, j-1))
             {
               bt_destinations.push_back(bt(t.first,t.second,ngr2,ngc2,sk));
+              world_grid[ngr2][ngc2].isBT = 1;
             }
           }
         }
@@ -1199,6 +1454,7 @@ void PathPlannerGrid::SSB(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps
             if(bactrackValidityForBSA_CM(t, nx2, ny2, j-1))
             {
               bt_destinations.push_back(bt(t.first,t.second,ngr3,ngc3,sk));
+              world_grid[ngr3][ngc3].isBT = 1; 
             }
           }
         }
@@ -1210,6 +1466,7 @@ void PathPlannerGrid::SSB(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps
           if(!isBlocked(ngr, ngc))
           {
             uev_destinations.push_back(uev(t.first,t.second,ngr,ngc,sk));
+            world_grid[ngr][ngc].isUEV = 1; 
             cout<<"added a new uev point "<<ngr<<" "<<ngc<<endl;
             
           }
@@ -1241,139 +1498,184 @@ void PathPlannerGrid::SSB(AprilInterfaceAndVideoCapture &testbed, robot_pose &ps
  }
 
  status = 1;
- for(int j = 0; j < bots.size(); j++)
- {
-      for(int i = 0;i<bots[j].bt_destinations.size();i++){
-      //check if backtrackpoint has been yet visited or not, or if that is still valid
-        pair <int, int> backtrack_parent;
-        backtrack_parent.first = bots[j].bt_destinations[i].parent.first;
-        backtrack_parent.second = bots[j].bt_destinations[i].parent.second;
 
-        if(!bots[j].bt_destinations[i].valid || world_grid[bots[j].bt_destinations[i].next_p.first][bots[j].bt_destinations[i].next_p.second].steps>0 /*|| !bots[j].checkBactrackValidityForBSA_CM(backtrack_parent)*/){//the bt is no longer uncovered or backtack conditions no longer remain
-          bots[j].bt_destinations[i].valid = false;//the point should no longer be considered in future
-          continue;
-        }
+ pair <int, int> next_target;
+ pair <int, int> target_parent;
 
-        //next 30 lines are to determine if there exist a parent for this bt_point, with smaller path (needed because just after this we are calculating the distance till the parents and sorting accordingly)
-        int best_parent_x, best_parent_y; 
-        int min_total_points = 10000000, min_total_points_index;
-        int flag = 0;
-        for(int k = 0; k < 4; k++)
-        {
-          best_parent_x = bots[j].bt_destinations[i].next_p.first + aj[0][1][k].first;
-          best_parent_y = bots[j].bt_destinations[i].next_p.second + aj[0][1][k].second;
-          if(isBlocked(best_parent_x, best_parent_y))
-          {
-            vector<vector<nd> > tp;//a temporary map
-            PathPlannerGrid temp_planner(tp);
-            temp_planner.gridInversion(*this, bots[j].robot_tag_id);
-            temp_planner.start_grid_x = start_grid_x;//the current robot coordinates
-            temp_planner.start_grid_y = start_grid_y;
-            temp_planner.goal_grid_x = best_parent_x;
-            temp_planner.goal_grid_y = best_parent_y;
-            temp_planner.findshortest(testbed);
-            if(temp_planner.total_points< min_total_points && temp_planner.total_points >= 0)
-            {
-              min_total_points = temp_planner.total_points;
-              min_total_points_index = k;
-              flag = 1;
-            }
-          }
-        }
-        if(flag == 1)
-        {
-          bots[j].bt_destinations[i].parent.first = bots[j].bt_destinations[i].next_p.first + aj[0][1][min_total_points_index].first;
-          bots[j].bt_destinations[i].parent.second = bots[j].bt_destinations[i].next_p.second + aj[0][1][min_total_points_index].second;
-        }//best parent assigned
+next_target = bidForBT(testbed, make_pair(start_grid_x, start_grid_y), bots);
 
-        vector<vector<nd> > tp;//a temporary map
-        PathPlannerGrid temp_planner(tp);
-        temp_planner.gridInversion(*this, bots[j].robot_tag_id);
-        temp_planner.start_grid_x = start_grid_x;//the current robot coordinates
-        temp_planner.start_grid_y = start_grid_y;
-        temp_planner.goal_grid_x = bots[j].bt_destinations[i].parent.first;
-        temp_planner.goal_grid_y = bots[j].bt_destinations[i].parent.second;
-        temp_planner.findshortest(testbed);
-        bots[j].bt_destinations[i].manhattan_distance = temp_planner.total_points;//-1 if no path found
 
-      }
-      
-      sort(bots[j].bt_destinations.begin(),bots[j].bt_destinations.end(),[](const bt &a, const bt &b) -> bool{
-        return a.manhattan_distance<b.manhattan_distance;
-        });
-  }//for j
-
-  int it = 10000000;
-  vector <int> mind(bots.size(),10000000);
-  bool valid_found = false;
-  int min_global_manhattan_dist = 10000000, min_j_index = 0;
-  int min_valid_distance = 10000000, min_valid_index = 0;
-  for(int j = 0; j < bots.size(); j++)
+  if(next_target.first != -1 && next_target.second != -1)
   {
-    for(int k = 0;k<bots[j].bt_destinations.size();k++){
-    if(!bots[j].bt_destinations[k].valid || bots[j].bt_destinations[k].manhattan_distance<0)//refer line 491
-      continue;
-    if(k!=10000000)//almost unnecesary condition
+    for(int i = 0; i < 4; i++)
+    {
+      ngr = next_target.first + aj[0][1][i].first;
+      ngc = next_target.second + aj[0][1][i].second;
+      if(isEmpty(ngr,ngc) && world_grid[ngr][ngc].steps ==1)
       {
-        mind[j] = k;//closest valid backtracking point
-        it = k;
-        if(bots[j].bt_destinations[it].manhattan_distance < min_global_manhattan_dist)
-        {
-          min_global_manhattan_dist = bots[j].bt_destinations[it].manhattan_distance;
-          min_j_index = j;
-        }
-      }//if k
-     
-    int i;
-    for(i = 0;i<bots.size();i++){
-      if(bots[i].robot_id == origin_id || bots[i].robot_id == robot_id)//the tag is actually the origin or current robot itself
-        continue;
-      //all planners must share the same map
-      cout<<bots[i].robot_tag_id<<": Going for backtrack simulation bid!"<<endl;
-      int tp = bots[i].backtrackSimulateBid(bots[j].bt_destinations[it].next_p,testbed);// returns 10000000 if no path, checks if this particular backtrack point can be reached by other bot in lesser steps
-      if(tp<bots[j].bt_destinations[it].manhattan_distance)//a closer bot is available
-        {
-          cout<<"some other bot can reach earlier!\n";
-          break;
-        }
-      }//for i
-      if(i == bots.size()){
-        cout<<"valid bt point for this found!"<<endl;
-        valid_found = true;
-        if(bots[j].bt_destinations[it].manhattan_distance < min_valid_distance)
-        {
-          min_valid_distance = bots[j].bt_destinations[it].manhattan_distance;
-          min_valid_index = j;
-        }
-      cout<<"the best bt point yet is: "<<bots[min_valid_index].bt_destinations[mind[min_valid_index]].next_p.first<<" "<<bots[min_valid_index].bt_destinations[mind[min_valid_index]].next_p.second<<endl;
-      break;
-      } //if(i==)
-    }//for k
-  }//for j
-
-  int bot_index = 0;
-  if(!valid_found && mind[min_j_index] == 10000000){//no bt point left
-    status = 2;
-    cout<<"no bt point left for robot "<<robot_tag_id<<endl;
-    BSA_CMSearchForBTAmongstUEV(testbed, bots, incumbent_cells, ic_no, sk);
+        target_parent = make_pair(ngr, ngc);
+        break;
+      }
+    }
+    addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,next_target.first,next_target.second,target_parent,testbed);
     return;
   }
-  if(!valid_found && mind[min_j_index] != 10000000)//no point exists for which the given robot is the closest
-    {
-      status = 1;
-      it = mind[min_j_index];
-      bot_index = min_j_index;
-    }
-  else if(valid_found)
+
+  next_target = bidForUEV(testbed, make_pair(start_grid_x, start_grid_y), bots);
+  
+
+  if(next_target.first != -1 && next_target.second != -1)
   {
-    status = 1;
-    it = mind[min_valid_index];
-    bot_index = min_valid_index;
+    for(int i = 0; i < 4; i++)
+    {
+      ngr = next_target.first + aj[0][1][i].first;
+      ngc = next_target.second + aj[0][1][i].second;
+      if(isEmpty(ngr,ngc) && world_grid[ngr][ngc].steps ==1)
+      {
+        target_parent = make_pair(ngr, ngc);
+        break;
+      }
+    }
+    addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,next_target.first,next_target.second,target_parent,testbed);
+    return;
   }
-  //else it stores the index of the next bt point
-  //sk = bt_destinations[it].stack_state;
-  cout<<"Just found the best backtrack point. Adding it!\n";
-  addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,bots[bot_index].bt_destinations[it].next_p.first,bots[bot_index].bt_destinations[it].next_p.second,bots[bot_index].bt_destinations[it].parent,testbed);
+
+  status = 2;
+
+ // status = 1;
+ // for(int j = 0; j < bots.size(); j++)
+ // {
+ //      for(int i = 0;i<bots[j].bt_destinations.size();i++){
+ //      //check if backtrackpoint has been yet visited or not, or if that is still valid
+ //        pair <int, int> backtrack_parent;
+ //        backtrack_parent.first = bots[j].bt_destinations[i].parent.first;
+ //        backtrack_parent.second = bots[j].bt_destinations[i].parent.second;
+
+ //        if(!bots[j].bt_destinations[i].valid || world_grid[bots[j].bt_destinations[i].next_p.first][bots[j].bt_destinations[i].next_p.second].steps>0 /*|| !bots[j].checkBactrackValidityForBSA_CM(backtrack_parent)*/){//the bt is no longer uncovered or backtack conditions no longer remain
+ //          bots[j].bt_destinations[i].valid = false;//the point should no longer be considered in future
+ //          continue;
+ //        }
+
+ //        //next 30 lines are to determine if there exist a parent for this bt_point, with smaller path (needed because just after this we are calculating the distance till the parents and sorting accordingly)
+ //        int best_parent_x, best_parent_y; 
+ //        int min_total_points = 10000000, min_total_points_index;
+ //        int flag = 0;
+ //        for(int k = 0; k < 4; k++)
+ //        {
+ //          best_parent_x = bots[j].bt_destinations[i].next_p.first + aj[0][1][k].first;
+ //          best_parent_y = bots[j].bt_destinations[i].next_p.second + aj[0][1][k].second;
+ //          if(isBlocked(best_parent_x, best_parent_y))
+ //          {
+ //            vector<vector<nd> > tp;//a temporary map
+ //            PathPlannerGrid temp_planner(tp);
+ //            temp_planner.gridInversion(*this, bots[j].robot_tag_id);
+ //            temp_planner.start_grid_x = start_grid_x;//the current robot coordinates
+ //            temp_planner.start_grid_y = start_grid_y;
+ //            temp_planner.goal_grid_x = best_parent_x;
+ //            temp_planner.goal_grid_y = best_parent_y;
+ //            temp_planner.findshortest(testbed);
+ //            if(temp_planner.total_points< min_total_points && temp_planner.total_points >= 0)
+ //            {
+ //              min_total_points = temp_planner.total_points;
+ //              min_total_points_index = k;
+ //              flag = 1;
+ //            }
+ //          }
+ //        }
+ //        if(flag == 1)
+ //        {
+ //          bots[j].bt_destinations[i].parent.first = bots[j].bt_destinations[i].next_p.first + aj[0][1][min_total_points_index].first;
+ //          bots[j].bt_destinations[i].parent.second = bots[j].bt_destinations[i].next_p.second + aj[0][1][min_total_points_index].second;
+ //        }//best parent assigned
+
+ //        vector<vector<nd> > tp;//a temporary map
+ //        PathPlannerGrid temp_planner(tp);
+ //        temp_planner.gridInversion(*this, bots[j].robot_tag_id);
+ //        temp_planner.start_grid_x = start_grid_x;//the current robot coordinates
+ //        temp_planner.start_grid_y = start_grid_y;
+ //        temp_planner.goal_grid_x = bots[j].bt_destinations[i].parent.first;
+ //        temp_planner.goal_grid_y = bots[j].bt_destinations[i].parent.second;
+ //        temp_planner.findshortest(testbed);
+ //        bots[j].bt_destinations[i].manhattan_distance = temp_planner.total_points;//-1 if no path found
+
+ //      }
+      
+ //      sort(bots[j].bt_destinations.begin(),bots[j].bt_destinations.end(),[](const bt &a, const bt &b) -> bool{
+ //        return a.manhattan_distance<b.manhattan_distance;
+ //        });
+  //}//for j
+
+  // int it = 10000000;
+  // vector <int> mind(bots.size(),10000000);
+  // bool valid_found = false;
+  // int min_global_manhattan_dist = 10000000, min_j_index = 0;
+  // int min_valid_distance = 10000000, min_valid_index = 0;
+  // for(int j = 0; j < bots.size(); j++)
+  // {
+  //   for(int k = 0;k<bots[j].bt_destinations.size();k++){
+  //   if(!bots[j].bt_destinations[k].valid || bots[j].bt_destinations[k].manhattan_distance<0)//refer line 491
+  //     continue;
+  //   if(k!=10000000)//almost unnecesary condition
+  //     {
+  //       mind[j] = k;//closest valid backtracking point
+  //       it = k;
+  //       if(bots[j].bt_destinations[it].manhattan_distance < min_global_manhattan_dist)
+  //       {
+  //         min_global_manhattan_dist = bots[j].bt_destinations[it].manhattan_distance;
+  //         min_j_index = j;
+  //       }
+  //     }//if k
+     
+  //   int i;
+  //   for(i = 0;i<bots.size();i++){
+  //     if(bots[i].robot_id == origin_id || bots[i].robot_id == robot_id)//the tag is actually the origin or current robot itself
+  //       continue;
+  //     //all planners must share the same map
+  //     cout<<bots[i].robot_tag_id<<": Going for backtrack simulation bid!"<<endl;
+  //     int tp = bots[i].backtrackSimulateBid(bots[j].bt_destinations[it].next_p,testbed);// returns 10000000 if no path, checks if this particular backtrack point can be reached by other bot in lesser steps
+  //     if(tp<bots[j].bt_destinations[it].manhattan_distance)//a closer bot is available
+  //       {
+  //         cout<<"some other bot can reach earlier!\n";
+  //         break;
+  //       }
+  //     }//for i
+  //     if(i == bots.size()){
+  //       cout<<"valid bt point for this found!"<<endl;
+  //       valid_found = true;
+  //       if(bots[j].bt_destinations[it].manhattan_distance < min_valid_distance)
+  //       {
+  //         min_valid_distance = bots[j].bt_destinations[it].manhattan_distance;
+  //         min_valid_index = j;
+  //       }
+  //     cout<<"the best bt point yet is: "<<bots[min_valid_index].bt_destinations[mind[min_valid_index]].next_p.first<<" "<<bots[min_valid_index].bt_destinations[mind[min_valid_index]].next_p.second<<endl;
+  //     break;
+  //     } //if(i==)
+  //   }//for k
+  // }//for j
+
+  // int bot_index = 0;
+  // if(!valid_found && mind[min_j_index] == 10000000){//no bt point left
+  //   status = 2;
+  //   cout<<"no bt point left for robot "<<robot_tag_id<<endl;
+  //   BSA_CMSearchForBTAmongstUEV(testbed, bots, incumbent_cells, ic_no, sk);
+  //   return;
+  // }
+  // if(!valid_found && mind[min_j_index] != 10000000)//no point exists for which the given robot is the closest
+  //   {
+  //     status = 1;
+  //     it = mind[min_j_index];
+  //     bot_index = min_j_index;
+  //   }
+  // else if(valid_found)
+  // {
+  //   status = 1;
+  //   it = mind[min_valid_index];
+  //   bot_index = min_valid_index;
+  // }
+  // //else it stores the index of the next bt point
+  // //sk = bt_destinations[it].stack_state;
+  // cout<<"Just found the best backtrack point. Adding it!\n";
+  // addBacktrackPointToStackAndPath(sk,incumbent_cells,ic_no,bots[bot_index].bt_destinations[it].next_p.first,bots[bot_index].bt_destinations[it].next_p.second,bots[bot_index].bt_destinations[it].parent,testbed);
 }//function
 
 int PathPlannerGrid::backtrackSimulateBidForBoustrophedonMotion(pair<int,int> target,AprilInterfaceAndVideoCapture &testbed){
@@ -3091,6 +3393,47 @@ void PathPlannerGrid::drawPath(Mat &image){
   }*/
 }
 
+void PathPlannerGrid::drawCommCircle(cv::Mat &image, AprilInterfaceAndVideoCapture &testbed, vector<PathPlannerGrid> &bots)
+{
+  if(setRobotCellCoordinates(testbed.detections)<0)
+  return;
+  cout<<"drawing circle!\n"<<endl;
+  cv::Scalar circle_color;
+  cout<<"id1: "<<robot_tag_id;
+  int pax = testbed.detections[bots[robot_tag_id].robot_id].cxy.first;
+  int pay = testbed.detections[bots[robot_tag_id].robot_id].cxy.second;
+  cout<<"pax, pay: "<<pax<<" "<<pay<<endl;
+  bool in_range  = 0;
+
+  for(int i = 1; i < bots.size(); i++)
+  {  
+    if(in_range==1) break;
+    if(i==robot_tag_id)continue;
+    if(bots[i].setRobotCellCoordinates(testbed.detections)<0)continue;
+
+    int pbx = testbed.detections[bots[i].robot_id].cxy.first;
+    int pby = testbed.detections[bots[i].robot_id].cxy.second;
+    cout<<"id2: "<<i<<endl;
+    cout<<"pbx, pby: "<<pbx<<" "<<pby<<endl;
+    cout<<"distance: "<<sqrt((pow((pax-pbx),2)) + (pow((pay-pby),2))) <<endl;
+
+    if(sqrt((pow((pax-pbx),2)) + (pow((pay-pby),2))) < 120)//45 cm rougly equals 12 pixel distance in current arrangement. It's very orientation specific and hence is hard coded.
+    {
+      in_range = 1;
+    }  
+  }
+
+  if(in_range == 0)
+  {
+    circle_color = Scalar(121, 74, 69);
+  }
+  else
+  {
+    circle_color = Scalar(202, 84, 143);    
+  }
+
+  circle(image, Point (pax, pay), 120, circle_color,2);
+}
 //for the class PathPlannerUser
 void PathPlannerUser::addPoint(int px, int py, double x,double y){
   if(total_points>=path_points.size()){
