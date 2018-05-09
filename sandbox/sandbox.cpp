@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
   //Create and initialize the VideoWriter object 
   //comment out following three lines if you do not want to record the video of coverage
   Size frame_size(640, 480);
-  int frames_per_second = 10;
+  int frames_per_second = 15;
   VideoWriter oVideoWriter("/home/robot/Videos/SSB_Coverage_with_45_cm_comm_contstraint.avi", VideoWriter::fourcc('M', 'J', 'P','G'), frames_per_second, frame_size, true); //to record the video
   
 if (oVideoWriter.isOpened() == false) 

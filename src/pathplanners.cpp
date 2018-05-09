@@ -3425,14 +3425,18 @@ void PathPlannerGrid::drawCommCircle(cv::Mat &image, AprilInterfaceAndVideoCaptu
 
   if(in_range == 0)
   {
-    circle_color = Scalar(121, 74, 69);
+    //circle_color = Scalar(121, 74, 69);
+    circle_color = Scalar(130, 0, 75);    
+    
   }
   else
   {
-    circle_color = Scalar(202, 84, 143);    
+    //circle_color = Scalar(202, 84, 143); 
+    //circle_color = Scalar(0, 69, 255);
+    circle_color = Scalar(0, 0, 139);
   }
 
-  circle(image, Point (pax, pay), 120, circle_color,2);
+  circle(image, Point (pax, pay), 120, circle_color,5);
 }
 //for the class PathPlannerUser
 void PathPlannerUser::addPoint(int px, int py, double x,double y){
